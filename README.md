@@ -25,8 +25,8 @@ an important parameter in
 all image formation methods using
 the delay-and-sum (DAS) algorithm, such as
 
-- coherent plane-wave compounding, or
-- synthetic aperture imaging.
+- coherent plane-wave compounding [2], or
+- synthetic aperture imaging [3].
 
 The F-number significantly reduces
 image artifacts.
@@ -44,7 +44,7 @@ a dynamic receive aperture.
 Two methods to compute
 the F-number have been proposed.
 
-1. Directivity of the array elements:
+1. Directivity of the array elements [4,5,2]:
 This method attributes
 the image artifacts to
 noise.
@@ -52,7 +52,7 @@ The element directivity attenuates
 the recorded signals and reduces
 the signal-to-noise ratio.
 
-2. Undersampling: This method attributes
+2. Undersampling [6,7]: This method attributes
 the image artifacts to
 the grating lobes.
 The F-number enforces
@@ -85,3 +85,25 @@ the spatial resolution.
 ## References :notebook:
 
 1. M. F. Schiffner and G. Schmitz, "Frequency-Dependent F-Number Increases the Contrast and the Spatial Resolution in Fast Pulse-Echo Ultrasound Imaging", 2021 IEEE Int. Ultrasonics Symp. (IUS), accepted
+
+2. G. Montaldo, M. Tanter, J. Bercoff, N. Benech, and M. Fink, “Coherent plane-wave
+compounding for very high frame rate ultrasonography and transient elastography,” IEEE Trans. Ultrason.,
+Ferroelectr., Freq. Control, vol. 56, no. 3, pp. 489–506, Mar. 2009.
+[![DOI:10.1109/TUFFC.2009.1067](https://img.shields.io/badge/DOI-10.1109%2FTUFFC.2009.1067-blue)](http://dx.doi.org/10.1109/TUFFC.2009.1067)
+
+3. J. A. Jensen, S. I. Nikolov, K. L. Gammelmark, and M. H. Pedersen, “Synthetic aperture
+ultrasound imaging,” Ultrasonics, vol. 44, Supplement, e5–e15, Dec. 2006.
+[![DOI:10.1016/j.ultras.2006.07.017](https://img.shields.io/badge/DOI-10.1016%2Fj.ultras.2006.07.017-blue)](http://dx.doi.org/10.1016/j.ultras.2006.07.017)
+
+4. V. Perrot, M. Polichetti, F. Varray, and D. Garcia, “So you think you can DAS? A viewpoint on
+delay-and-sum beamforming,” Ultrasonics, vol. 111, p. 106 309, Mar. 2021.
+[![DOI:10.1016/j.ultras.2020.106309](https://img.shields.io/badge/DOI-10.1016%2Fj.ultras.2020.106309-blue)](http://dx.doi.org/10.1016/j.ultras.2020.106309)
+
+5. T. L. Szabo, Diagnostic Ultrasound Imaging: Inside Out, 2nd. Elsevier Academic Press, Dec. 2013
+
+6. B. Delannoy, R. Torguet, C. Bruneel, E. Bridoux, J. M. Rouvaen, and H. Lasota, “Acoustical image reconstruction in parallel-processing analog electronic systems,” J. Appl. Phys., vol. 50, no. 5, pp. 3153–3159, May 1979.
+[![DOI:10.1063/1.326397](https://img.shields.io/badge/DOI-10.1063%2F1.326397-blue)](http://dx.doi.org/10.1063/1.326397)
+
+7. C. Bruneel, E. Bridoux, B. Delannoy, B. Nongaillard, J. M. Rouvaen, and R. Torguet, “Effect of
+spatial sampling on an acoustical image reconstruction,” J. Appl. Phys., vol. 49, no. 2, pp. 569–573, Feb. 1978.
+[![DOI:10.1063/1.324680](https://img.shields.io/badge/DOI-10.1063%2F1.324680-blue)](http://dx.doi.org/10.1063/1.324680)
