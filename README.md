@@ -70,12 +70,14 @@ mutually contradictory.
 The proposed Fourier-domain beamforming algorithm accounts for
 the strong frequency dependence of
 the F-number.
-It varies the width of
+The algorithm not only varies
+the width of
 the receive subaperture with
-the frequency and, in contrast to
+the position but also with
+the frequency.
+This additional frequency dependence, in contrast to
 a fixed F-number, includes
-additional frequency components.
-These improve both
+additional frequency components to improve both
 the contrast and
 the spatial resolution.
 
@@ -83,25 +85,52 @@ the spatial resolution.
 | ----------------- | --------------------------------- | ------------------ | ------------------------ |
 | No F-number       | always full                       | optimal            | none                     |
 | Fixed F-number    | position-dependent                | minimal            | exaggerated              |
-| Proposed F-number | frequency- and position dependent | almost optimal     | almost optimal           |
+| Proposed F-number | frequency- and position-dependent | almost optimal     | almost optimal           |
 
 ## Getting Started
 
-1. Clone or download the repository to your local hard drive.
-2. Add the repository to your MATLAB path using addpath( genpath( 'your/folder/here' ) ).
-3. Call the function das_pw to form images.
+1. Clone the repository or download the release to your local hard drive.
+
+```
+git clone https://github.com/mschiffn/f_number
+```
+
+2. Add the repository to your MATLAB path using .
+
+```matlab
+addpath( genpath( './f_number' ) )
+```
+
+## Folder Structure
+
+The repository has the following structure:
+
+    .
+    ├── +f_numbers                  # classes for various types of F-numbers (e.g., fixed, directivity-derived, proposed)
+    ├── +windows                    # classes for various window functions (e.g., boxcar, Hann, Tukey)
+    ├── das_pw.m                    # main function
+    ├── LICENSE                     # license file
+    └── README.md                   # this readme
+
+The packages +f_numbers and +windows contain an exemplary class hierarchy to manage various types of F-numbers and window functions.
+The proposed F-number can be instantiated by f_number = f_numbers.grating.angle_lb().
+The directivity-derived F-number is f_number = f_numbers.directivity.perrot( , 3 ).
 
 ## Image Formation
 
 Use the function das_pw to form images.
 
+In MATLAB type
+```matlab
+help das_pw
+```
+
+to obtain an explanation of the input and output arguments.
+
+
 ```matlab
 [ image, F_number_values ] = das_pw( positions_x, positions_z, data_RF, f_s, e_theta, element_width, element_pitch, ( 1 - N_elements ) / 2, [ f_lb, f_ub ], c_ref, N_samples_shift, window, F_number);
 ```
-
-The packages +f_numbers and +windows contain an exemplary class hierarchy to manage various types of F-numbers and window functions.
-The proposed F-number can be instantiated by f_number = f_numbers.grating.angle_lb().
-The directivity-derived F-number is f_number = f_numbers.directivity.perrot( , 3 ).
 
 ## References :notebook:
 

@@ -8,7 +8,9 @@ function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, 
 % the sampling rate.
 % A uniform linear transducer array is assumed.
 %
+% -------------------------------------------------------------------------
 % INPUTS:
+% -------------------------------------------------------------------------
 % 01.) positions_x:         lateral pixel positions (m)
 % 02.) positions_z:         axial pixel positions (m)
 % 03.) data_RF:             RF data (2d array; 1st dimension: time, 2nd dimension: array element index)
@@ -23,7 +25,9 @@ function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, 
 % 12.) window:              window function for receive apodization (  object of class windows.window )
 % 13.) F_number:            receive F-number (  object of class f_numbers.f_number )
 %
+% -------------------------------------------------------------------------
 % OUTPUTS:
+% -------------------------------------------------------------------------
 % 01.) image:               complex-valued DAS image
 % 02.) F_number_values:     computed F-number for each frequency
 % 03.) signal:              focused RF signal for last image voxel
