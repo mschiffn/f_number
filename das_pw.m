@@ -221,10 +221,10 @@ for index_pos_x = 1:numel( positions_x )
 
 end % for index_pos_x = 1:numel( positions_x )
 
-% figure(999);
-% imagesc( illustration.dB( image, 20 ), [ -50, 0 ] );
-% title( string( F_number ), 'Interpreter', 'none' );
-% colormap gray;
+figure(999);
+imagesc( illustration.dB( image, 20 ), [ -50, 0 ] );
+title( string( F_number ), 'Interpreter', 'none' );
+colormap gray;
 
 % return focused RF signal
 if nargout >= 3
