@@ -5,7 +5,7 @@
 % date: 2021-08-10
 % modified: 2021-08-11
 %
-classdef hann < windows.tukey
+classdef hann < windows.window
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	%% methods
@@ -20,13 +20,21 @@ classdef hann < windows.tukey
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
-            % superclass ensures valid varargin
+            % ensure at most one input
+            narginchk( 0, 1 );
+
+            % ensure existence of nonempty size
+            if nargin < 1 || isempty( size )
+                size = [ 1, 1 ];
+            end
+
+            % superclass ensures valid size
 
             %--------------------------------------------------------------
             % 2.) create hann apodizations
             %--------------------------------------------------------------
             % constructor of superclass
-            objects@windows.tukey( ones( size ) );
+            objects@windows.window( size );
 
         end % function objects = hann( size )
 
@@ -45,7 +53,7 @@ classdef hann < windows.tukey
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
-            % calling method ensures class f_numbers.f_number for f_number (scalar)
+            % calling method ensures class windows.window for hann (scalar)
             % calling method ensures for element_pitch_over_lambda
 
             %--------------------------------------------------------------
@@ -63,7 +71,7 @@ classdef hann < windows.tukey
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
-            % calling method ensures class apodizations.apodization
+            % calling method ensures class windows.window for hann (scalar)
 
             %--------------------------------------------------------------
             % 2.) create string scalar
@@ -74,4 +82,4 @@ classdef hann < windows.tukey
 
 	end % methods (Access = protected, Hidden)
 
-end % classdef hann < windows.tukey
+end % classdef hann < windows.window

@@ -2,12 +2,12 @@
 
 [![GitHub](license-image)](license-url)
 [![GitHub](downloads-image)](downloads-url)
-![GitHub repo size](https://img.shields.io/github/repo-size/mschiffn/comp_ui_toolbox)
-![GitHub All Releases](https://img.shields.io/github/downloads/mschiffn/comp_ui_toolbox/total)
+![GitHub repo size](https://img.shields.io/github/repo-size/mschiffn/f_number)
+![GitHub All Releases](https://img.shields.io/github/downloads/mschiffn/f_number/total)
 
-[license-image]: https://img.shields.io/github/license/mschiffn/comp_ui_toolbox
-[license-url]: https://github.com/mschiffn/comp_ui_toolbox/COPYING
-[downloads-image]: https://img.shields.io/github/downloads/mschiffn/comp_ui_toolbox/total
+[license-image]: https://img.shields.io/github/license/mschiffn/f_number
+[license-url]: https://github.com/mschiffn/f_number/COPYING
+[downloads-image]: https://img.shields.io/github/downloads/mschiffn/f_number/total
 [downloads-url]: https://npmjs.org/package/ieee754
 
 A simple [MATLAB](mathworks-url) implementation of
@@ -26,9 +26,9 @@ all image formation methods using
 the delay-and-sum (DAS) algorithm, such as
 
 - coherent plane-wave compounding [[2]](#article:MontaldoITUFFC2009), or
-- synthetic aperture imaging [[3]](#article:JensenUlt2006).
+- synthetic aperture imaging [[3]](#article:JensenUlt2006), that
 
-The F-number significantly reduces
+significantly reduces
 image artifacts.
 
 The F-number, for a uniform linear array, equals
@@ -36,34 +36,42 @@ the quotient of
 the focal length and
 the width of
 the receive subaperture.
+
 The usage of
-a fixed F-number results in
+a fixed F-number, thus, results in
 a dynamic receive aperture whose
 width depends on
 the current focal length.
 
 Methods to compute
-the F-number rely on
-two phenomena:
-
-1. Directivity of the array elements [[4]](#article:PerrotUlt2021), [[5]](#book:Szabo2013), [[2]](#article:MontaldoITUFFC2009):
-These methods attribute
+the F-number attribute
 the image artifacts to
-noise.
-The noise results from
-the attenuation of
-the recorded signals by
-the element directivity.
+two different phenomena:
 
-2. Undersampling [[6]](#article:DelannoyJAP1979), [[7]](#article:BruneelJAP1978): This method attributes
-the image artifacts to
-the grating lobes.
-The F-number enforces
-a specific grating lobe-to-main lobe ratio.
+1. Noise [[4]](#article:PerrotUlt2021), [[5]](#book:Szabo2013), [[2]](#article:MontaldoITUFFC2009):
+The directivity of the array elements attenuates
+the recorded signals and reduces
+the signal-to-noise ratio.
+
+2. Grating lobes [[6]](#article:DelannoyJAP1979), [[7]](#article:BruneelJAP1978):
+The width of
+the receive subaperture determines
+the grating lobe-to-main lobe ratio.
 
 Both methods, although they yield
-similar F-numbers (1 <= F <= 2), are
+similar F-numbers (0.5 <= F <= 2), are
 mutually contradictory.
+Wide array elements, for example, exhibit
+an increased directivity and, according to
+the first method, require narrow receive subapertures or
+large F-numbers.
+Such elements, according to
+the first method, however, attenuate
+the grating lobes and permit wide receive subapertures or
+small F-numbers.
+
+The results, furthermore, strongly depend on
+the frequency.
 
 ## What Does the Frequency-Dependent F-number Accomplish?
 

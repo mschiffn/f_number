@@ -3,17 +3,17 @@
 %
 % author: Martin F. Schiffner
 % date: 2021-08-06
-% modified: 2021-08-06
+% modified: 2021-08-19
 %
 classdef (Abstract) directivity < f_numbers.f_number
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    %% properties
+	%% properties
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	properties (SetAccess = private)
+    properties (SetAccess = private)
 
         % independent properties
-        width_over_pitch ( 1, 1 ) double { mustBeNonnegative, mustBeNonempty } = 0.918	% element width over element pitch (filling factor)
+        width_over_pitch ( 1, 1 ) double { mustBeNonnegative, mustBeNonempty } = 0.918	% element width-to-element pitch ratio (filling factor)
         attenuation_dB ( 1, 1 ) double { mustBePositive, mustBeNonempty } = 3           % tolerable attenuation in the directivity
 
         % dependent properties
@@ -42,6 +42,23 @@ classdef (Abstract) directivity < f_numbers.f_number
             % ensure existence of nonempty attenuations_dB
             if nargin < 2 || isempty( attenuations_dB )
                 attenuations_dB = 3;
+            end
+
+            % multiple widths_over_pitch, single attenuations_dB
+            if ~isscalar( widths_over_pitch ) && isscalar( attenuations_dB )
+                attenuations_dB = repmat( attenuations_dB, size( widths_over_pitch ) );
+            end
+
+            % single widths_over_pitch, multiple attenuations_dB
+            if isscalar( widths_over_pitch ) && ~isscalar( attenuations_dB )
+                widths_over_pitch = repmat( widths_over_pitch, size( attenuations_dB ) );
+            end
+
+            % ensure equal sizes
+            if ~isequal( size( widths_over_pitch ), size( attenuations_dB ) )
+                errorStruct.message = 'widths_over_pitch and attenuations_dB must have equal sizes!';
+                errorStruct.identifier = 'directivity:SizeMismatch';
+                error( errorStruct );
             end
 
             %--------------------------------------------------------------

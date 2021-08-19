@@ -20,13 +20,7 @@ classdef (Abstract) window
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
-            % ensure at most one input
-            narginchk( 0, 1 );
-
-            % ensure existence of nonempty size
-            if nargin < 1 || isempty( size )
-                size = [ 1, 1 ];
-            end
+            % calling method ensures existence of nonempty size
 
             % ensure row vector for size
             if ~isrow( size )

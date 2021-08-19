@@ -1,10 +1,10 @@
 %
 % superclass for all directivity-derived F-numbers according to
-% Perrot et al.
+% Perrot et al. (soft baffle model)
 %
 % author: Martin F. Schiffner
 % date: 2021-08-06
-% modified: 2021-08-06
+% modified: 2021-08-19
 %
 classdef perrot < f_numbers.directivity.directivity
 
@@ -21,7 +21,7 @@ classdef perrot < f_numbers.directivity.directivity
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
-            % superclass ensures valid widths_over_pitch
+            % superclass ensures valid varargin
 
             %--------------------------------------------------------------
             % 2.) create directivity-derived F-numbers (Perrot et al.)
@@ -29,7 +29,7 @@ classdef perrot < f_numbers.directivity.directivity
             % constructor of superclass
             objects@f_numbers.directivity.directivity( varargin{ : } );
 
-        end % function objects = perrot( widths_over_pitch )
+        end % function objects = perrot( varargin )
 
 	end % methods
 
@@ -47,7 +47,7 @@ classdef perrot < f_numbers.directivity.directivity
             % 1.) check arguments
             %--------------------------------------------------------------
             % calling method ensures class f_numbers.f_number for f_number (scalar)
-            % calling method ensures for element_pitch_over_lambda
+            % calling method ensures positive element_pitch_over_lambda for element_pitch_over_lambda
 
             %--------------------------------------------------------------
             % 2.) compute values (scalar)
@@ -80,14 +80,14 @@ classdef perrot < f_numbers.directivity.directivity
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
-            % calling method ensures class f_numbers.f_number
+            % calling method ensures class f_numbers.f_number for f_number (scalar)
 
             %--------------------------------------------------------------
             % 2.) create string scalar
             %--------------------------------------------------------------
             str_out = sprintf( "perrot_fill_%.2f_att_%.1f", perrot.width_over_pitch * 1e2, perrot.attenuation_dB );
 
-        end % function strs_out = string( f_numbers )
+        end % function str_out = string_scalar( perrot )
 
 	end % methods (Access = protected, Hidden)
 

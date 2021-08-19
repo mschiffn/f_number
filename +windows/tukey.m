@@ -9,13 +9,13 @@ classdef tukey < windows.window
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	%% properties
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	properties (SetAccess = private)
 
         % independent properties
-        roll_off_factor ( 1, 1 ) double { mustBeNonnegative, mustBeLessThanOrEqual( roll_off_factor, 1 ), mustBeNonempty } = 1 % roll-off factor
+        roll_off_factor ( 1, 1 ) double { mustBePositive, mustBeLessThan( roll_off_factor, 1 ), mustBeNonempty } = 0.5 % roll-off factor
 
-    end % properties
+	end % properties
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	%% methods
@@ -53,7 +53,7 @@ classdef tukey < windows.window
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	%% methods (protected, hidden)
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	methods (Access = protected, Hidden)
+    methods (Access = protected, Hidden)
 
         %------------------------------------------------------------------
         % compute samples (scalar)
@@ -63,15 +63,15 @@ classdef tukey < windows.window
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
-            % calling method ensures class f_numbers.f_number for f_number (scalar)
+            % calling method ensures class f_numbers.f_number for tukey (scalar)
             % calling method ensures for element_pitch_over_lambda
 
             %--------------------------------------------------------------
             % 2.) compute samples (scalar)
             %--------------------------------------------------------------
             % compute lower and upper bounds
-            length = tukey.roll_off_factor * widths_over_2;
-            positions_abs_thresh = widths_over_2 - length;
+            length_taper = tukey.roll_off_factor * widths_over_2;
+            positions_abs_thresh = widths_over_2 - length_taper;
 
             % absolute values of the positions
             positions_abs = abs( positions );
@@ -79,10 +79,10 @@ classdef tukey < windows.window
             % position indicators
             samples = double( positions_abs <= widths_over_2 );
             indicator_taper = ( positions_abs > positions_abs_thresh ) & samples;
-            positions_abs_diff_over_length = ( positions_abs - positions_abs_thresh ) ./ length;
+            positions_abs_diff_over_length = ( positions_abs - positions_abs_thresh ) ./ length_taper;
             samples( indicator_taper ) = ( 1 + cos( pi * positions_abs_diff_over_length( indicator_taper ) ) ) / 2;
 
-        end % function samples = compute_values_scalar( tukey, positions, widths_over_2 )
+        end % function samples = compute_samples_scalar( tukey, positions, widths_over_2 )
 
         %------------------------------------------------------------------
         % string array (scalar)
@@ -92,7 +92,7 @@ classdef tukey < windows.window
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
-            % calling method ensures class windows.window
+            % calling method ensures class windows.window for tukey (scalar)
 
             %--------------------------------------------------------------
             % 2.) create string scalar

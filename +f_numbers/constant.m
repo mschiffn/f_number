@@ -3,7 +3,7 @@
 %
 % author: Martin F. Schiffner
 % date: 2021-08-03
-% modified: 2021-08-04
+% modified: 2021-08-19
 %
 classdef constant < f_numbers.f_number
 
@@ -30,7 +30,7 @@ classdef constant < f_numbers.f_number
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
-            % property validation functions ensure valid values
+            % property validation function ensures valid vals
 
             %--------------------------------------------------------------
             % 2.) create constant F-numbers
@@ -64,7 +64,7 @@ classdef constant < f_numbers.f_number
             % 1.) check arguments
             %--------------------------------------------------------------
             % calling method ensures class f_numbers.f_number for f_number (scalar)
-            % calling method ensures  for element_pitch_over_lambda
+            % calling method ensures positive element_pitch_over_lambda for element_pitch_over_lambda
 
             %--------------------------------------------------------------
             % 2.) compute values (scalar)
@@ -81,14 +81,14 @@ classdef constant < f_numbers.f_number
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
-            % calling method ensures class f_numbers.f_number
+            % calling method ensures class f_numbers.f_number for f_number (scalar)
 
             %--------------------------------------------------------------
             % 2.) create string scalar
             %--------------------------------------------------------------
             str_out = sprintf( "constant_%.2f", f_number.value );
 
-        end % function strs_out = string( f_numbers )
+        end % function str_out = string_scalar( f_number )
 
 	end % methods (Access = protected, Hidden)
 

@@ -3,7 +3,7 @@
 %
 % author: Martin F. Schiffner
 % date: 2021-08-03
-% modified: 2021-08-04
+% modified: 2021-08-19
 %
 classdef (Abstract) f_number
 
@@ -20,6 +20,9 @@ classdef (Abstract) f_number
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
+            % ensure one argument
+            narginchk( 1, 1 );
+
             % ensure row vector for size
             if ~isrow( size )
                 errorStruct.message = 'size must be a row vector!';
@@ -38,28 +41,7 @@ classdef (Abstract) f_number
             % repeat default F-number
             objects = repmat( objects, size );
 
-        end % function objects = anti_aliasing_filter( size )
-
-        %------------------------------------------------------------------
-        % half-widths of receive subapertures
-        %------------------------------------------------------------------
-        function widths = half_width_aperture( f_numbers, focal_lengths )
-
-            %--------------------------------------------------------------
-            % 1.) check arguments
-            %--------------------------------------------------------------
-            % ensure class scattering.anti_aliasing_filters.anti_aliasing_filter
-
-            %
-            
-
-            %--------------------------------------------------------------
-            % 2.) half-widths of receive subapertures
-            %--------------------------------------------------------------
-            
-
-
-        end % function widths = half_width_aperture( f_numbers, focal_lengths )
+        end % function objects = f_number( size )
 
         %------------------------------------------------------------------
         % compute values
@@ -70,14 +52,33 @@ classdef (Abstract) f_number
             % 1.) check arguments
             %--------------------------------------------------------------
             % ensure class f_numbers.f_number
+            if ~isa( f_numbers, 'f_numbers.f_number' )
+                errorStruct.message = 'f_numbers must be f_numbers.f_number!';
+                errorStruct.identifier = 'compute_values:NoFNumbers';
+                error( errorStruct );
+            end
 
             % ensure cell array for element_pitch_over_lambda
             if ~iscell( element_pitch_over_lambda )
                 element_pitch_over_lambda = { element_pitch_over_lambda };
             end
 
+            % multiple f_numbers, single element_pitch_over_lambda
+            if ~isscalar( f_numbers ) && isscalar( element_pitch_over_lambda )
+                element_pitch_over_lambda = repmat( element_pitch_over_lambda, size( f_numbers ) );
+            end
+
+            % single f_numbers, multiple element_pitch_over_lambda
+            if isscalar( f_numbers ) && ~isscalar( element_pitch_over_lambda )
+                f_numbers = repmat( f_numbers, size( element_pitch_over_lambda ) );
+            end
+
             % ensure equal sizes
-            
+            if ~isequal( size( f_numbers ), size( element_pitch_over_lambda ) )
+                errorStruct.message = 'f_numbers and element_pitch_over_lambda must have equal sizes!';
+                errorStruct.identifier = 'compute_values:SizeMismatch';
+                error( errorStruct );
+            end
 
             %--------------------------------------------------------------
             % 2.) compute values
@@ -88,12 +89,21 @@ classdef (Abstract) f_number
             % iterate F-numbers
             for index_object = 1:numel( f_numbers )
 
-                % compute values (scalar)
+                %----------------------------------------------------------
+                % a) check arguments
+                %----------------------------------------------------------
+                % ensure positive element_pitch_over_lambda
+                mustBeNonempty( element_pitch_over_lambda{ index_object } );
+                mustBePositive( element_pitch_over_lambda{ index_object } );
+
+                %----------------------------------------------------------
+                % b) compute values (scalar)
+                %----------------------------------------------------------
                 values{ index_object } = compute_values_scalar( f_numbers( index_object ), element_pitch_over_lambda{ index_object } );
 
             end % for index_object = 1:numel( f_numbers )
 
-            % avoid cell array for scalar f_numbers
+            % avoid cell array for single f_numbers
             if isscalar( f_numbers )
                 values = values{ 1 };
             end

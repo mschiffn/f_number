@@ -3,14 +3,14 @@
 %
 % author: Martin F. Schiffner
 % date: 2021-08-10
-% modified: 2021-08-11
+% modified: 2021-08-19
 %
-classdef boxcar < windows.tukey
+classdef boxcar < windows.window
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	%% methods
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	methods
+    methods
 
         %------------------------------------------------------------------
         % constructor
@@ -20,15 +20,23 @@ classdef boxcar < windows.tukey
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
-            % superclass ensures valid varargin
+            % ensure at most one input
+            narginchk( 0, 1 );
+
+            % ensure existence of nonempty size
+            if nargin < 1 || isempty( size )
+                size = [ 1, 1 ];
+            end
+
+            % superclass ensures valid size
 
             %--------------------------------------------------------------
             % 2.) create boxcar windows
             %--------------------------------------------------------------
             % constructor of superclass
-            objects@windows.tukey( zeros( size ) );
+            objects@windows.window( size );
 
-        end % function objects = boxcar( varargin )
+        end % function objects = boxcar( size )
 
 	end % methods
 
@@ -45,13 +53,13 @@ classdef boxcar < windows.tukey
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
-            % calling method ensures class f_numbers.f_number for f_number (scalar)
+            % calling method ensures class windows.window for boxcar (scalar)
             % calling method ensures for element_pitch_over_lambda
 
             %--------------------------------------------------------------
             % 2.) compute samples (scalar)
             %--------------------------------------------------------------
-            samples = abs( positions ) <= widths_over_2;
+            samples = double( abs( positions ) <= widths_over_2 );
 
         end % function samples = compute_samples_scalar( ~, positions, widths_over_2 )
 
@@ -63,7 +71,7 @@ classdef boxcar < windows.tukey
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
-            % calling method ensures class windows.window
+            % calling method ensures class windows.window for boxcar (scalar)
 
             %--------------------------------------------------------------
             % 2.) create string scalar
