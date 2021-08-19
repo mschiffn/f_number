@@ -88,9 +88,9 @@ classdef szabo < f_numbers.directivity.directivity
             %--------------------------------------------------------------
             % 2.) create string scalar
             %--------------------------------------------------------------
-            str_out = sprintf( "perrot_%.2f%%_%.1f", szabo.width_over_pitch * 1e2, szabo.attenuation_dB );
+            str_out = sprintf( "szabo_fill_%.2f_att_%.1f", szabo.width_over_pitch * 1e2, szabo.attenuation_dB );
 
-        end % function strs_out = string( f_numbers )
+        end % function str_out = string_scalar( szabo )
 
 	end % methods (Access = protected, Hidden)
 
