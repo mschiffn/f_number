@@ -10,8 +10,8 @@
 [downloads-image]: https://img.shields.io/github/downloads/mschiffn/f_number/total
 [downloads-url]: https://npmjs.org/package/ieee754
 
-A simple [MATLAB](mathworks-url) implementation of
-the frequency-dependent F-number for
+Simple [MATLAB](mathworks-url) implementation of
+the frequency-dependent F-number [[1]](#proc:SchiffnerIUS2021) for
 coherent plane-wave compounding (CPWC).
 
 ![CIRS040](./figures/f_number_effect.png)
@@ -90,9 +90,8 @@ image artifacts but also maintains
 the spatial resolution of
 the full aperture [[1]](#proc:SchiffnerIUS2021).
 This F-number, in particular, prevents
-the first-order grating lobes from entering
-the field of
-view by imposing
+the first-order grating lobes from insonifying
+reflective image structures by imposing
 a lower bound on
 the angular distance of
 these lobes.
@@ -105,7 +104,7 @@ this F-number.
 The algorithm not only varies
 the width of
 the receive subaperture with
-the position but also with
+the voxel position but also with
 the frequency.
 This additional frequency dependence, in contrast to
 a fixed F-number, includes
@@ -145,8 +144,16 @@ The repository has the following structure:
     └── README.md       # this readme
 
 The packages +f_numbers and +windows contain an exemplary class hierarchy to manage various types of F-numbers and window functions.
-The proposed F-number can be instantiated by f_number = f_numbers.grating.angle_lb().
-The directivity-derived F-number is f_number = f_numbers.directivity.perrot( , 3 ).
+The proposed F-number can be instantiated by
+
+```matlab
+F_number_rx = f_numbers.grating.angle_lb( 45, 3 )
+```
+
+The directivity-derived F-number is
+```matlab
+F_number_rx = f_numbers.directivity.perrot( 0.918 )
+```
 
 ## Image Formation
 
