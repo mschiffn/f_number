@@ -10,13 +10,11 @@
 [downloads-image]: https://img.shields.io/github/downloads/mschiffn/f_number/total
 [downloads-url]: https://npmjs.org/package/ieee754
 
-Simple [MATLAB](mathworks-url) implementation of
-the frequency-dependent F-number [[1]](#proc:SchiffnerIUS2021) for
+Simple [MATLAB](https://mathworks.com/products/matlab.html) implementation of
+the frequency-dependent F-number [[1]](#SchiffnerIUS2021) for
 coherent plane-wave compounding (CPWC).
 
 ![CIRS040](./figures/f_number_effect.png)
-
-[mathworks-url]: https://mathworks.com/products/matlab.html
 
 ## What is the F-Number?
 
@@ -25,8 +23,8 @@ image artifacts in
 all image formation methods using
 the delay-and-sum (DAS) algorithm, such as
 
-- coherent plane-wave compounding [[2]](#article:MontaldoITUFFC2009), or
-- synthetic aperture imaging [[3]](#article:JensenUlt2006).
+- coherent plane-wave compounding [[2]](#MontaldoITUFFC2009), or
+- synthetic aperture imaging [[3]](#JensenUlt2006).
 
 The F-number, for a uniform linear array, equals
 the quotient of
@@ -49,14 +47,14 @@ the optimal F-number attribute
 the image artifacts to
 two different phenomena:
 
-1. Noise [[4]](#article:PerrotUlt2021), [[5]](#book:Szabo2013), [[2]](#article:MontaldoITUFFC2009):
+1. Noise [[4]](#PerrotUlt2021), [[5]](#Szabo2013), [[2]](#MontaldoITUFFC2009):
 The directivity of
 the array elements attenuates
 the echoes and reduces
 the signal-to-noise ratio of
 the recorded signals.
 
-2. Grating lobes [[6]](#article:DelannoyJAP1979), [[7]](#article:BruneelJAP1978):
+2. Grating lobes [[6]](#DelannoyJAP1979), [[7]](#BruneelJAP1978):
 The width of
 the receive subaperture determines
 the grating lobe-to-main lobe ratio.
@@ -173,36 +171,36 @@ to obtain an explanation of the input and output arguments.
 
 ## References :notebook:
 
-1. <a name="proc:SchiffnerIUS2021"></a>
+1. <a name="SchiffnerIUS2021"></a>
 M. F. Schiffner and G. Schmitz, "Frequency-Dependent F-Number Increases the Contrast and the Spatial Resolution in Fast Pulse-Echo Ultrasound Imaging", 2021 IEEE Int. Ultrasonics Symp. (IUS), accepted
 
-2. <a name="article:MontaldoITUFFC2009"></a>
+2. <a name="MontaldoITUFFC2009"></a>
 G. Montaldo, M. Tanter, J. Bercoff, N. Benech, and M. Fink,
 “Coherent plane-wave compounding for very high frame rate ultrasonography and transient elastography,"
 IEEE Trans. Ultrason., Ferroelectr., Freq. Control, vol. 56, no. 3, pp. 489–506, Mar. 2009.
 [![DOI:10.1109/TUFFC.2009.1067](https://img.shields.io/badge/DOI-10.1109%2FTUFFC.2009.1067-blue)](http://dx.doi.org/10.1109/TUFFC.2009.1067)
 
-3. <a name="article:JensenUlt2006"></a>
+3. <a name="JensenUlt2006"></a>
 J. A. Jensen, S. I. Nikolov, K. L. Gammelmark, and M. H. Pedersen,
 “Synthetic aperture ultrasound imaging,” Ultrasonics, vol. 44, Supplement, e5–e15, Dec. 2006.
 [![DOI:10.1016/j.ultras.2006.07.017](https://img.shields.io/badge/DOI-10.1016%2Fj.ultras.2006.07.017-blue)](http://dx.doi.org/10.1016/j.ultras.2006.07.017)
 
-4. <a name="article:PerrotUlt2021"></a>
+4. <a name="PerrotUlt2021"></a>
 V. Perrot, M. Polichetti, F. Varray, and D. Garcia,
 “So you think you can DAS? A viewpoint on delay-and-sum beamforming,”
 Ultrasonics, vol. 111, p. 106 309, Mar. 2021.
 [![DOI:10.1016/j.ultras.2020.106309](https://img.shields.io/badge/DOI-10.1016%2Fj.ultras.2020.106309-blue)](http://dx.doi.org/10.1016/j.ultras.2020.106309)
 
-5. <a name="book:Szabo2013"></a>
+5. <a name="Szabo2013"></a>
 T. L. Szabo, Diagnostic Ultrasound Imaging: Inside Out, 2nd. Elsevier Academic Press, Dec. 2013
 
-6. <a name="article:DelannoyJAP1979"></a>
+6. <a name="DelannoyJAP1979"></a>
 B. Delannoy, R. Torguet, C. Bruneel, E. Bridoux, J. M. Rouvaen, and H. Lasota,
 “Acoustical image reconstruction in parallel-processing analog electronic systems,”
 J. Appl. Phys., vol. 50, no. 5, pp. 3153–3159, May 1979.
 [![DOI:10.1063/1.326397](https://img.shields.io/badge/DOI-10.1063%2F1.326397-blue)](http://dx.doi.org/10.1063/1.326397)
 
-7. <a name="article:BruneelJAP1978"></a>
+7. <a name="BruneelJAP1978"></a>
 C. Bruneel, E. Bridoux, B. Delannoy, B. Nongaillard, J. M. Rouvaen, and R. Torguet,
 “Effect of spatial sampling on an acoustical image reconstruction,”
 J. Appl. Phys., vol. 49, no. 2, pp. 569–573, Feb. 1978.
