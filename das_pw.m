@@ -225,11 +225,6 @@ for index_pos_x = 1:numel( positions_x )
 
 end % for index_pos_x = 1:numel( positions_x )
 
-figure(998);
-imagesc( illustration.dB( image, 20 ), [ -70, 0 ] );
-title( string( F_number ), 'Interpreter', 'none' );
-colormap gray;
-
 % return focused RF signal
 if nargout >= 3
 	signal = zeros( N_points_dft, 1 );

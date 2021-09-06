@@ -1,10 +1,10 @@
 %
-% superclass for all grating lobe-derived F-numbers with
-% lower bound on the angle
+% superclass for all grating lobe-derived F-numbers that enforce
+% a lower bound on the angular distance
 %
 % author: Martin F. Schiffner
 % date: 2021-08-07
-% modified: 2021-08-07
+% modified: 2021-09-06
 %
 classdef angle_lb < f_numbers.grating.grating
 
@@ -53,19 +53,16 @@ classdef angle_lb < f_numbers.grating.grating
             % 2.) compute values (scalar)
             %--------------------------------------------------------------
             % detect valid frequencies
-            indicator_impossible = 1 ./ element_pitch_over_lambda <= angle_lb.thresh;
+            indicator_relevant = ( element_pitch_over_lambda > angle_lb.lower_bound ) & ( element_pitch_over_lambda < angle_lb.upper_bound );
+            indicator_impossible = element_pitch_over_lambda >= angle_lb.upper_bound;
 
-            % lower bound on the F-number (no overlap)
-            F_number_lb = sqrt( max( element_pitch_over_lambda.^2, 0.25 ) - 0.25 );
+            % initialize F-number w/ zeros
+            values = zeros( size( element_pitch_over_lambda ) );
 
             % F-number ensures lower bound on the first-order grating lobe angle
-            F_number_grating = sqrt( max( 1 ./ ( 4 * ( 1 ./ element_pitch_over_lambda - angle_lb.thresh ).^2 ), 0.25 ) - 0.25 );
-
-            % enforce lower bound on the F-number
-            values = max( F_number_lb, F_number_grating );
+            values( indicator_relevant ) = sqrt( 1 ./ ( 1 ./ element_pitch_over_lambda( indicator_relevant ) - angle_lb.thresh ).^2 - 1 ) / 2;
 
             % enforce upper bound on the F-number
-            values = min( values, angle_lb.F_number_ub );
             values( indicator_impossible ) = angle_lb.F_number_ub;
 
         end % function values = compute_values_scalar( angle_lb, element_pitch_over_lambda )
