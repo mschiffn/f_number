@@ -18,18 +18,15 @@ coherent plane-wave compounding (CPWC).
 
 [mathworks-url]: https://mathworks.com/products/matlab.html
 
-## Motivation
+## What is the F-Number?
 
-The F-number is
-an important parameter in
+The F-number significantly reduces
+image artifacts in
 all image formation methods using
 the delay-and-sum (DAS) algorithm, such as
 
 - coherent plane-wave compounding [[2]](#article:MontaldoITUFFC2009), or
-- synthetic aperture imaging [[3]](#article:JensenUlt2006), that
-
-significantly reduces
-image artifacts.
+- synthetic aperture imaging [[3]](#article:JensenUlt2006).
 
 The F-number, for a uniform linear array, equals
 the quotient of
@@ -37,47 +34,74 @@ the focal length and
 the width of
 the receive subaperture.
 
+![F-number](./figures/f_number_definition.png)
+
 The usage of
 a fixed F-number, thus, results in
-a dynamic receive aperture whose
-width depends on
-the current focal length.
+a dynamic receive subaperture whose
+width increases with
+the focal length.
 
-Methods to compute
-the F-number attribute
+## Established Methods to Compute the Optimal F-Number are Mutually Contradictory
+
+Established methods to compute
+the optimal F-number attribute
 the image artifacts to
 two different phenomena:
 
 1. Noise [[4]](#article:PerrotUlt2021), [[5]](#book:Szabo2013), [[2]](#article:MontaldoITUFFC2009):
-The directivity of the array elements attenuates
-the recorded signals and reduces
-the signal-to-noise ratio.
+The directivity of
+the array elements attenuates
+the echoes and reduces
+the signal-to-noise ratio of
+the recorded signals.
 
 2. Grating lobes [[6]](#article:DelannoyJAP1979), [[7]](#article:BruneelJAP1978):
 The width of
 the receive subaperture determines
 the grating lobe-to-main lobe ratio.
 
-Both methods, although they yield
+Both methods, although yielding
 similar F-numbers (0.5 <= F <= 2), are
 mutually contradictory.
+
 Wide array elements, for example, exhibit
-an increased directivity and, according to
-the first method, require narrow receive subapertures or
-large F-numbers.
-Such elements, according to
-the first method, however, attenuate
-the grating lobes and permit wide receive subapertures or
-small F-numbers.
+an increased directivity.
+The first method suggests
+the usage of
+narrow receive subapertures or, equivalently,
+large F-numbers for
+such elements to avoid
+noise problems.
+The second method, in contrast, permits
+wide receive subapertures or, equivalently,
+small F-numbers for
+such elements because they attenuate
+the grating lobes.
 
-The results, furthermore, strongly depend on
-the frequency.
+Both methods, furthermore, yield
+F-numbers with
+a strong frequency dependence.
 
-## What Does the Frequency-Dependent F-number Accomplish?
+## What Does the Proposed F-Number Accomplish?
+
+The proposed F-number not only eliminates
+image artifacts but also maintains
+the spatial resolution of
+the full aperture [[1]](#proc:SchiffnerIUS2021).
+This F-number, in particular, prevents
+the first-order grating lobes from entering
+the field of
+view by imposing
+a lower bound on
+the angular distance of
+these lobes.
+
+## How Does the Implementation Work?
 
 The proposed Fourier-domain beamforming algorithm accounts for
 the strong frequency dependence of
-the F-number.
+this F-number.
 The algorithm not only varies
 the width of
 the receive subaperture with
@@ -93,7 +117,7 @@ the spatial resolution.
 | ----------------- | --------------------------------- | ------------------ | ------------------------ |
 | No F-number       | always full                       | optimal            | none                     |
 | Fixed F-number    | position-dependent                | minimal            | exaggerated              |
-| Proposed F-number | frequency- and position-dependent | almost optimal     | almost optimal           |
+| Proposed F-number | frequency- and position-dependent | almost optimal     | optimal                  |
 
 ## Getting Started
 
@@ -114,11 +138,11 @@ addpath( genpath( './f_number' ) )
 The repository has the following structure:
 
     .
-    ├── +f_numbers                  # classes for various types of F-numbers (e.g., fixed, directivity-derived, proposed)
-    ├── +windows                    # classes for various window functions (e.g., boxcar, Hann, Tukey)
-    ├── das_pw.m                    # main function
-    ├── LICENSE                     # license file
-    └── README.md                   # this readme
+    ├── +f_numbers      # classes for various types of F-numbers (e.g., fixed, directivity-derived, proposed)
+    ├── +windows        # classes for various window functions (e.g., boxcar, Hann, Tukey)
+    ├── das_pw.m        # main function
+    ├── LICENSE         # license file
+    └── README.md       # this readme
 
 The packages +f_numbers and +windows contain an exemplary class hierarchy to manage various types of F-numbers and window functions.
 The proposed F-number can be instantiated by f_number = f_numbers.grating.angle_lb().
@@ -142,7 +166,8 @@ to obtain an explanation of the input and output arguments.
 
 ## References :notebook:
 
-1. M. F. Schiffner and G. Schmitz, "Frequency-Dependent F-Number Increases the Contrast and the Spatial Resolution in Fast Pulse-Echo Ultrasound Imaging", 2021 IEEE Int. Ultrasonics Symp. (IUS), accepted
+1. <a name="proc:SchiffnerIUS2021"></a>
+M. F. Schiffner and G. Schmitz, "Frequency-Dependent F-Number Increases the Contrast and the Spatial Resolution in Fast Pulse-Echo Ultrasound Imaging", 2021 IEEE Int. Ultrasonics Symp. (IUS), accepted
 
 2. <a name="article:MontaldoITUFFC2009"></a>
 G. Montaldo, M. Tanter, J. Bercoff, N. Benech, and M. Fink,
