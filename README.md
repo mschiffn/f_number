@@ -1,4 +1,4 @@
-# Frequency-dependent F-number for coherent plane-wave compounding
+# Frequency-Dependent F-Number for Coherent Plane-Wave Compounding
 
 [![GitHub](license-image)](license-url)
 [![GitHub](downloads-image)](downloads-url)
