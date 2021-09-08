@@ -11,8 +11,9 @@
 [downloads-url]: https://npmjs.org/package/ieee754
 
 Simple [MATLAB](https://mathworks.com/products/matlab.html) implementation of
-the frequency-dependent F-number [[1]](#SchiffnerIUS2021) for
-coherent plane-wave compounding (CPWC).
+the frequency-dependent F-number
+[[1]](#SchiffnerIUS2021) for
+coherent plane-wave compounding.
 
 ![CIRS040](./figures/f_number_effect.png)
 
@@ -26,7 +27,8 @@ the delay-and-sum (DAS) algorithm, such as
 - coherent plane-wave compounding [[2]](#MontaldoITUFFC2009), or
 - synthetic aperture imaging [[3]](#JensenUlt2006).
 
-The F-number, for a uniform linear array, equals
+The F-number, for
+a uniform linear transducer array, equals
 the quotient of
 the focal length and
 the width of
@@ -35,12 +37,12 @@ the receive subaperture.
 ![F-number](./figures/f_number_definition.png)
 
 The usage of
-a fixed F-number, thus, results in
+a fixed F-number results in
 a dynamic receive subaperture whose
 width increases with
 the focal length.
 
-## Established Methods to Compute the Optimal F-Number are Mutually Contradictory
+## Established Methods to Compute the F-Number are Contradictory and Yield Frequency-Dependent Results
 
 Established methods to compute
 the optimal F-number attribute
@@ -59,46 +61,62 @@ The width of
 the receive subaperture determines
 the grating lobe-to-main lobe ratio.
 
-Both methods, although yielding
+Both approaches, although yielding
 similar F-numbers (0.5 <= F <= 2), are
 mutually contradictory.
 
-Wide array elements, for example, exhibit
-an increased directivity.
-The first method suggests
+Wide array elements, for example, show
+an increased directivity.<br>
+The "Noise" approach suggests
 the usage of
 narrow receive subapertures or, equivalently,
-large F-numbers for
-such elements to avoid
-noise problems.
-The second method, in contrast, permits
+*large* F-numbers for
+such elements to improve
+the signal-to-noise ratio.<br>
+The "Grating lobes" approach, in contrast, permits
 wide receive subapertures or, equivalently,
-small F-numbers for
+*small* F-numbers for
 such elements because they attenuate
 the grating lobes.
 
-Both methods, furthermore, yield
-F-numbers with
-a strong frequency dependence.
+Both approaches, moreover, yield
+F-numbers that increase with
+the frequency.
+
+The DAS algorithm, however, requires
+a fixed F-number and typically uses
+the maximum F-number at
+the upper frequency bound.
+This F-number satifies
+the conditions for
+all lower frequencies but, owing to
+its suboptimal value, reduces
+the spatial resolution.
 
 ## What Does the Proposed F-Number Accomplish?
 
 The proposed F-number not only eliminates
 image artifacts but also maintains
 the spatial resolution of
-the full aperture [[1]](#proc:SchiffnerIUS2021).
+the full aperture
+[[1]](#proc:SchiffnerIUS2021).
+
 This F-number, in particular, prevents
 the first-order grating lobes from insonifying
-reflective image structures by imposing
-a lower bound on
-the angular distance of
-these lobes.
+reflective image structures.
+The F-number, to
+this end, uses
+a closed-form expression, which derives from
+the far-field sensitivity of
+the focused receive subaperture, to impose
+a minimum angular distance on
+these grating lobes.
 
 ## How Does the Implementation Work?
 
-The proposed Fourier-domain beamforming algorithm accounts for
-the strong frequency dependence of
-this F-number.
+A Fourier-domain beamforming algorithm enables
+the usage of
+frequency-dependent F-numbers.
 The algorithm not only varies
 the width of
 the receive subaperture with
@@ -106,7 +124,7 @@ the voxel position but also with
 the frequency.
 This additional frequency dependence, in contrast to
 a fixed F-number, includes
-additional frequency components to improve both
+additional frequency components that improve both
 the contrast and
 the spatial resolution.
 
@@ -148,7 +166,9 @@ The proposed F-number can be instantiated by
 F_number_rx = f_numbers.grating.angle_lb( 45, 3 )
 ```
 
-The directivity-derived F-number is
+The directivity-derived F-number
+[[4]](#PerrotUlt2021) is
+
 ```matlab
 F_number_rx = f_numbers.directivity.perrot( 0.918 )
 ```
