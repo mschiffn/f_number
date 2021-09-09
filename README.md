@@ -1,14 +1,16 @@
 # Frequency-Dependent F-Number for Coherent Plane-Wave Compounding
 
-[![GitHub](license-image)](license-url)
-[![GitHub](downloads-image)](downloads-url)
-![GitHub repo size](https://img.shields.io/github/repo-size/mschiffn/f_number)
-![GitHub All Releases](https://img.shields.io/github/downloads/mschiffn/f_number/total)
+<!-- shields -->
+[![GitHub][license-shield]][license-url]
+![GitHub repo size][size-shield]
+![GitHub Downloads][downloads-shield]
+![Stargazers][stars-shield]
 
-[license-image]: https://img.shields.io/github/license/mschiffn/f_number
+[license-shield]: https://img.shields.io/github/license/mschiffn/f_number
 [license-url]: https://github.com/mschiffn/f_number/COPYING
-[downloads-image]: https://img.shields.io/github/downloads/mschiffn/f_number/total
-[downloads-url]: https://npmjs.org/package/ieee754
+[size-shield]: https://img.shields.io/github/repo-size/mschiffn/f_number
+[downloads-shield]: https://img.shields.io/github/downloads/mschiffn/f_number/total
+[stars-shield]: https://img.shields.io/github/stars/mschiffn/f_number.svg
 
 Simple [MATLAB](https://mathworks.com/products/matlab.html) implementation of
 the frequency-dependent F-number
@@ -184,6 +186,7 @@ help das_pw
 
 to obtain an explanation of the input and output arguments.
 
+The typical usage is:
 
 ```matlab
 [ image, F_number_values ] = das_pw( positions_x, positions_z, data_RF, f_s, e_theta, element_width, element_pitch, ( 1 - N_elements ) / 2, [ f_lb, f_ub ], c_ref, N_samples_shift, window, F_number);
