@@ -5,12 +5,15 @@
 ![GitHub repo size][size-shield]
 ![GitHub Downloads][downloads-shield]
 ![Stargazers][stars-shield]
+[![View on File Exchange][fex-shield]][fex-url]
 
 [license-shield]: https://img.shields.io/github/license/mschiffn/f_number
 [license-url]: https://github.com/mschiffn/f_number/COPYING
 [size-shield]: https://img.shields.io/github/repo-size/mschiffn/f_number
 [downloads-shield]: https://img.shields.io/github/downloads/mschiffn/f_number/total
 [stars-shield]: https://img.shields.io/github/stars/mschiffn/f_number.svg
+[fex-shield]: https://www.mathworks.com/matlabcentral/images/matlab-file-exchange.svg
+[fex-url]: https://www.mathworks.com/matlabcentral/fileexchange/99309-frequency-dependent-f-number-for-cpwc
 
 Simple [MATLAB](https://mathworks.com/products/matlab.html) implementation of
 the frequency-dependent F-number
