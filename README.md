@@ -6,6 +6,7 @@
 ![GitHub Downloads][downloads-shield]
 ![Stargazers][stars-shield]
 [![View on File Exchange][fex-shield]][fex-url]
+[![Watch on YouTube](https://img.shields.io/youtube/views/T6BoYRvQ6rg?label=YouTube)](https://www.youtube.com/watch?v=T6BoYRvQ6rg)
 
 [license-shield]: https://img.shields.io/github/license/mschiffn/f_number
 [license-url]: https://github.com/mschiffn/f_number/COPYING
@@ -198,7 +199,11 @@ The typical usage is:
 ## References :notebook:
 
 1. <a name="SchiffnerIUS2021"></a>
-M. F. Schiffner and G. Schmitz, "Frequency-Dependent F-Number Increases the Contrast and the Spatial Resolution in Fast Pulse-Echo Ultrasound Imaging", 2021 IEEE Int. Ultrasonics Symp. (IUS), accepted
+M. F. Schiffner and G. Schmitz,
+"Frequency-Dependent F-Number Increases the Contrast and the Spatial Resolution in Fast Pulse-Echo Ultrasound Imaging,"
+2021 IEEE Int. Ultrasonics Symp. (IUS), in press.
+[![Watch on YouTube](https://img.shields.io/youtube/views/T6BoYRvQ6rg?label=YouTube)](https://www.youtube.com/watch?v=T6BoYRvQ6rg)
+
 
 2. <a name="MontaldoITUFFC2009"></a>
 G. Montaldo, M. Tanter, J. Bercoff, N. Benech, and M. Fink,
