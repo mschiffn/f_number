@@ -23,7 +23,7 @@ coherent plane-wave compounding.
 
 ![CIRS040](./figures/f_number_effect.png)
 
-## What is the F-Number?
+## What is an F-Number?
 
 The F-number significantly reduces
 image artifacts in
@@ -202,8 +202,8 @@ The typical usage is:
 M. F. Schiffner and G. Schmitz,
 "Frequency-Dependent F-Number Increases the Contrast and the Spatial Resolution in Fast Pulse-Echo Ultrasound Imaging,"
 2021 IEEE Int. Ultrasonics Symp. (IUS), in press.
+[![arXiv](https://img.shields.io/badge/arXiv-2111.04593-b31b1b.svg)](http://arxiv.org/abs/2111.04593)
 [![Watch on YouTube](https://img.shields.io/youtube/views/T6BoYRvQ6rg?label=YouTube)](https://www.youtube.com/watch?v=T6BoYRvQ6rg)
-
 
 2. <a name="MontaldoITUFFC2009"></a>
 G. Montaldo, M. Tanter, J. Bercoff, N. Benech, and M. Fink,
