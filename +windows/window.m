@@ -3,7 +3,7 @@
 %
 % author: Martin F. Schiffner
 % date: 2021-08-10
-% modified: 2021-08-10
+% modified: 2022-01-07
 %
 classdef (Abstract) window
 
@@ -50,6 +50,9 @@ classdef (Abstract) window
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
+            % ensure three arguments
+            narginchk( 3, 3 );
+
             % ensure class windows.window
             if ~isa( windows, 'windows.window' )
                 errorStruct.message = 'windows must be windows.window!';
@@ -67,8 +70,8 @@ classdef (Abstract) window
                 widths_over_2 = { widths_over_2 };
             end
 
-            % TODO: ensure equal sizes
-%             [ positions, widths_over_2 ] = auxiliary.mustBeEqualSizes( positions, widths_over_2 );
+            % ensure equal number of dimensions and sizes
+            [ windows, positions, widths_over_2 ] = auxiliary.ensureEqualSize( windows, positions, widths_over_2 );
 
             %--------------------------------------------------------------
             % 2.) compute samples
@@ -99,6 +102,9 @@ classdef (Abstract) window
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
+            % ensure one argument
+            narginchk( 1, 1 );
+
             % ensure class windows.window
             if ~isa( windows, 'windows.window' )
                 errorStruct.message = 'windows must be windows.window!';

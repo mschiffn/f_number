@@ -64,7 +64,7 @@ classdef constant < f_numbers.f_number
             % 1.) check arguments
             %--------------------------------------------------------------
             % calling method ensures class f_numbers.f_number for f_number (scalar)
-            % calling method ensures positive element_pitch_over_lambda for element_pitch_over_lambda
+            % calling method ensures nonempty positive element_pitch_over_lambda for element_pitch_over_lambda
 
             %--------------------------------------------------------------
             % 2.) compute values (scalar)

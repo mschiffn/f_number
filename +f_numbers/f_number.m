@@ -3,7 +3,7 @@
 %
 % author: Martin F. Schiffner
 % date: 2021-08-03
-% modified: 2021-08-19
+% modified: 2022-01-07
 %
 classdef (Abstract) f_number
 
@@ -51,6 +51,9 @@ classdef (Abstract) f_number
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
+            % ensure two arguments
+            narginchk( 2, 2 );
+
             % ensure class f_numbers.f_number
             if ~isa( f_numbers, 'f_numbers.f_number' )
                 errorStruct.message = 'f_numbers must be f_numbers.f_number!';
@@ -63,22 +66,8 @@ classdef (Abstract) f_number
                 element_pitch_over_lambda = { element_pitch_over_lambda };
             end
 
-            % multiple f_numbers, single element_pitch_over_lambda
-            if ~isscalar( f_numbers ) && isscalar( element_pitch_over_lambda )
-                element_pitch_over_lambda = repmat( element_pitch_over_lambda, size( f_numbers ) );
-            end
-
-            % single f_numbers, multiple element_pitch_over_lambda
-            if isscalar( f_numbers ) && ~isscalar( element_pitch_over_lambda )
-                f_numbers = repmat( f_numbers, size( element_pitch_over_lambda ) );
-            end
-
-            % ensure equal sizes
-            if ~isequal( size( f_numbers ), size( element_pitch_over_lambda ) )
-                errorStruct.message = 'f_numbers and element_pitch_over_lambda must have equal sizes!';
-                errorStruct.identifier = 'compute_values:SizeMismatch';
-                error( errorStruct );
-            end
+            % ensure equal number of dimensions and sizes
+            [ f_numbers, element_pitch_over_lambda ] = auxiliary.ensureEqualSize( f_numbers, element_pitch_over_lambda );
 
             %--------------------------------------------------------------
             % 2.) compute values
@@ -92,7 +81,7 @@ classdef (Abstract) f_number
                 %----------------------------------------------------------
                 % a) check arguments
                 %----------------------------------------------------------
-                % ensure positive element_pitch_over_lambda
+                % ensure nonempty positive element_pitch_over_lambda{ index_object }
                 mustBeNonempty( element_pitch_over_lambda{ index_object } );
                 mustBePositive( element_pitch_over_lambda{ index_object } );
 
@@ -118,6 +107,9 @@ classdef (Abstract) f_number
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
+            % ensure one argument
+            narginchk( 1, 1 );
+
             % ensure class f_numbers.f_number
             if ~isa( f_numbers, 'f_numbers.f_number' )
                 errorStruct.message = 'f_numbers must be f_numbers.f_number!';
