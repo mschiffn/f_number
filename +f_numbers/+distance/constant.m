@@ -1,5 +1,5 @@
 %
-% superclass for all sampling theorem-derived F-numbers with
+% superclass for all F-numbers that maintain
 % a fixed angular distance between
 % the main lobe and
 % the first-order grating lobes
@@ -8,7 +8,7 @@
 % date: 2021-09-06
 % modified: 2022-01-07
 %
-classdef sampling < f_numbers.f_number
+classdef constant < f_numbers.f_number
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	%% properties
@@ -32,7 +32,7 @@ classdef sampling < f_numbers.f_number
         %------------------------------------------------------------------
         % constructor
         %------------------------------------------------------------------
-        function objects = sampling( distances_deg, F_numbers_ub )
+        function objects = constant( distances_deg, F_numbers_ub )
 
             %--------------------------------------------------------------
             % 1.) check arguments
@@ -64,7 +64,7 @@ classdef sampling < f_numbers.f_number
 
             end % for index_object = 1:numel( objects )
 
-        end % function objects = sampling( distances_deg, F_numbers_ub )
+        end % function objects = constant( distances_deg, F_numbers_ub )
 
 	end % methods
 
@@ -76,12 +76,12 @@ classdef sampling < f_numbers.f_number
         %------------------------------------------------------------------
         % compute values (scalar)
         %------------------------------------------------------------------
-        function values = compute_values_scalar( sampling, element_pitch_over_lambda )
+        function values = compute_values_scalar( constant, element_pitch_over_lambda )
 
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
-            % calling method ensures class f_numbers.f_number for sampling (scalar)
+            % calling method ensures class f_numbers.f_number for constant (scalar)
             % calling method ensures nonempty positive element_pitch_over_lambda for element_pitch_over_lambda (scalar)
 
             %--------------------------------------------------------------
@@ -91,36 +91,36 @@ classdef sampling < f_numbers.f_number
 %             F_number_lb = sqrt( max( element_pitch_over_lambda.^2, 0.25 ) - 0.25 );
 
             % detect valid frequencies
-            indicator_possible = sampling.thresh * element_pitch_over_lambda < 1;
+            indicator_possible = constant.thresh * element_pitch_over_lambda < 1;
 
             % enforce upper bound on the F-number
-            values = repmat( sampling.F_number_ub, size( element_pitch_over_lambda ) );
+            values = repmat( constant.F_number_ub, size( element_pitch_over_lambda ) );
 
             % prevent overlap of first-order grating lobes with the main lobe
-            values( indicator_possible ) = sqrt( max( 1 ./ ( 1 ./ element_pitch_over_lambda - sampling.thresh ).^2, 0.25 ) - 0.25 );
+            values( indicator_possible ) = sqrt( max( 1 ./ ( 1 ./ element_pitch_over_lambda - constant.thresh ).^2, 0.25 ) - 0.25 );
 
             % enforce upper bound on the F-number
-            values( indicator_possible ) = min( values( indicator_possible ), sampling.F_number_ub );
+            values( indicator_possible ) = min( values( indicator_possible ), constant.F_number_ub );
 
-        end % function values = compute_values_scalar( sampling, element_pitch_over_lambda )
+        end % function values = compute_values_scalar( constant, element_pitch_over_lambda )
 
         %------------------------------------------------------------------
         % string array (scalar)
         %------------------------------------------------------------------
-        function str_out = string_scalar( sampling )
+        function str_out = string_scalar( constant )
 
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
-            % calling method ensures class f_numbers.f_number for sampling (scalar)
+            % calling method ensures class f_numbers.f_number for constant (scalar)
 
             %--------------------------------------------------------------
             % 2.) create string scalar
             %--------------------------------------------------------------
-            str_out = sprintf( "sampling_distance_deg_%.2f_F_ub_%.2f", sampling.distance_deg, sampling.F_number_ub );
+            str_out = sprintf( "sampling_distance_deg_%.2f_F_ub_%.2f", constant.distance_deg, constant.F_number_ub );
 
-        end % function str_out = string_scalar( sampling )
+        end % function str_out = string_scalar( constant )
 
 	end % methods (Access = protected, Hidden)
 
-end % classdef sampling < f_numbers.f_number
+end % classdef constant < f_numbers.f_number
