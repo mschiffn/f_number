@@ -1,12 +1,14 @@
 %
-% superclass for all directivity-derived F-numbers according to
-% Perrot et al. (soft baffle model)
+% superclass for all directivity-derived F-numbers
+% boundary condition: soft baffle
+%
+% settings proposed by Perrot et al.
 %
 % author: Martin F. Schiffner
 % date: 2021-08-06
-% modified: 2021-08-19
+% modified: 2022-01-08
 %
-classdef perrot < f_numbers.directivity.directivity
+classdef perrot < f_numbers.directivity.soft
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	%% methods
@@ -16,79 +18,24 @@ classdef perrot < f_numbers.directivity.directivity
         %------------------------------------------------------------------
         % constructor
         %------------------------------------------------------------------
-        function objects = perrot( varargin )
+        function objects = perrot( widths_over_pitch )
 
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
-            % superclass ensures valid varargin
+            % ensure one argument
+            narginchk( 1, 1 );
+
+            % superclass ensures valid widths_over_pitch
 
             %--------------------------------------------------------------
-            % 2.) create directivity-derived F-numbers (Perrot et al.)
+            % 2.) create directivity-derived F-numbers (soft baffle)
             %--------------------------------------------------------------
             % constructor of superclass
-            objects@f_numbers.directivity.directivity( varargin{ : } );
+            objects@f_numbers.directivity.soft( widths_over_pitch, 3 )
 
-        end % function objects = perrot( varargin )
+        end % function objects = perrot( widths_over_pitch )
 
-	end % methods
+    end % methods
 
-	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	%% methods (protected, hidden)
-	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	methods (Access = protected, Hidden)
-
-        %------------------------------------------------------------------
-        % compute values (scalar)
-        %------------------------------------------------------------------
-        function values = compute_values_scalar( perrot, element_pitch_over_lambda )
-
-            %--------------------------------------------------------------
-            % 1.) check arguments
-            %--------------------------------------------------------------
-            % calling method ensures class f_numbers.f_number for f_number (scalar)
-            % calling method ensures positive element_pitch_over_lambda for element_pitch_over_lambda
-
-            %--------------------------------------------------------------
-            % 2.) compute values (scalar)
-            %--------------------------------------------------------------
-            % normalized element width
-            element_width_over_lambda = perrot.width_over_pitch * element_pitch_over_lambda;
-
-            % directivity pattern (soft baffle)
-            directivity = @( theta, width_norm ) cos( theta ) * sinc( width_norm * sin( theta ) );
-
-            % function to minimize
-            f = @( theta, width_norm ) abs( directivity( theta, width_norm ) - perrot.thresh );
-
-            % initialize F-numbers w/ zeros
-            values = zeros( size( element_pitch_over_lambda ) );
-
-            % iterate samples
-            for index_width = 1:numel( element_pitch_over_lambda )
-                alpha = fminbnd( @( theta ) f( theta, element_width_over_lambda( index_width ) ), 0, pi / 2 );
-                values( index_width ) = 1 / ( 2 * tan( alpha ) );
-            end
-
-        end % function values = compute_values_scalar( perrot, element_pitch_over_lambda )
-
-        %------------------------------------------------------------------
-        % string array (scalar)
-        %------------------------------------------------------------------
-        function str_out = string_scalar( perrot )
-
-            %--------------------------------------------------------------
-            % 1.) check arguments
-            %--------------------------------------------------------------
-            % calling method ensures class f_numbers.f_number for f_number (scalar)
-
-            %--------------------------------------------------------------
-            % 2.) create string scalar
-            %--------------------------------------------------------------
-            str_out = sprintf( "perrot_fill_%.2f_att_%.1f", perrot.width_over_pitch * 1e2, perrot.attenuation_dB );
-
-        end % function str_out = string_scalar( perrot )
-
-	end % methods (Access = protected, Hidden)
-
-end % classdef perrot < f_numbers.directivity.directivity
+end % classdef perrot < f_numbers.directivity.soft
