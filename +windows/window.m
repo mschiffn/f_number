@@ -3,7 +3,7 @@
 %
 % author: Martin F. Schiffner
 % date: 2021-08-10
-% modified: 2022-01-07
+% modified: 2022-01-09
 %
 classdef (Abstract) window
 
@@ -45,13 +45,13 @@ classdef (Abstract) window
         %------------------------------------------------------------------
         % compute samples
         %------------------------------------------------------------------
-        function samples = compute_samples( windows, positions, widths_over_2 )
+        function samples = compute_samples( windows, positions_over_halfwidth )
 
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
-            % ensure three arguments
-            narginchk( 3, 3 );
+            % ensure two arguments
+            narginchk( 2, 2 );
 
             % ensure class windows.window
             if ~isa( windows, 'windows.window' )
@@ -60,18 +60,13 @@ classdef (Abstract) window
                 error( errorStruct );
             end
 
-            % ensure cell array for positions
-            if ~iscell( positions )
-                positions = { positions };
-            end
-
-            % ensure cell array for widths_over_2
-            if ~iscell( widths_over_2 )
-                widths_over_2 = { widths_over_2 };
+            % ensure cell array for positions_over_halfwidth
+            if ~iscell( positions_over_halfwidth )
+                positions_over_halfwidth = { positions_over_halfwidth };
             end
 
             % ensure equal number of dimensions and sizes
-            [ windows, positions, widths_over_2 ] = auxiliary.ensureEqualSize( windows, positions, widths_over_2 );
+            [ windows, positions_over_halfwidth ] = auxiliary.ensureEqualSize( windows, positions_over_halfwidth );
 
             %--------------------------------------------------------------
             % 2.) compute samples
@@ -83,7 +78,7 @@ classdef (Abstract) window
             for index_object = 1:numel( windows )
 
                 % compute samples (scalar)
-                samples{ index_object } = compute_samples_scalar( windows( index_object ), positions{ index_object }, widths_over_2{ index_object } );
+                samples{ index_object } = compute_samples_scalar( windows( index_object ), positions_over_halfwidth{ index_object } );
 
             end % for index_object = 1:numel( f_numbers )
 
@@ -92,7 +87,7 @@ classdef (Abstract) window
                 samples = samples{ 1 };
             end
 
-        end % function samples = compute_samples( windows, positions, widths_over_2 )
+        end % function samples = compute_samples( windows, positions_over_halfwidth )
 
         %------------------------------------------------------------------
         % string array (overload string method)
@@ -137,7 +132,7 @@ classdef (Abstract) window
         %------------------------------------------------------------------
         % compute samples (scalar)
         %------------------------------------------------------------------
-        samples = compute_samples_scalar( window, positions, widths_over_2 );
+        samples = compute_samples_scalar( window, positions_over_halfwidth );
 
         %------------------------------------------------------------------
         % string array (scalar)

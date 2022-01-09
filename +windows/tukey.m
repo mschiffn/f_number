@@ -3,7 +3,7 @@
 %
 % author: Martin F. Schiffner
 % date: 2021-08-10
-% modified: 2021-08-11
+% modified: 2022-01-09
 %
 classdef tukey < windows.window
 
@@ -58,7 +58,7 @@ classdef tukey < windows.window
         %------------------------------------------------------------------
         % compute samples (scalar)
         %------------------------------------------------------------------
-        function samples = compute_samples_scalar( tukey, positions, widths_over_2 )
+        function samples = compute_samples_scalar( tukey, positions_over_halfwidth )
 
             %--------------------------------------------------------------
             % 1.) check arguments
@@ -70,19 +70,18 @@ classdef tukey < windows.window
             % 2.) compute samples (scalar)
             %--------------------------------------------------------------
             % compute lower and upper bounds
-            length_taper = tukey.roll_off_factor * widths_over_2;
-            positions_abs_thresh = widths_over_2 - length_taper;
+            positions_over_halfwidth_abs_thresh = 1 - tukey.roll_off_factor;
 
             % absolute values of the positions
-            positions_abs = abs( positions );
+            positions_over_halfwidth_abs = abs( positions_over_halfwidth );
 
             % position indicators
-            samples = double( positions_abs <= widths_over_2 );
-            indicator_taper = ( positions_abs > positions_abs_thresh ) & samples;
-            positions_abs_diff_over_length = ( positions_abs - positions_abs_thresh ) ./ length_taper;
-            samples( indicator_taper ) = ( 1 + cos( pi * positions_abs_diff_over_length( indicator_taper ) ) ) / 2;
+            samples = double( positions_over_halfwidth_abs <= 1 );
+            indicator_taper = ( positions_over_halfwidth_abs > positions_over_halfwidth_abs_thresh ) & samples;
+            positions_over_halfwidth_abs_diff_over_length = ( positions_over_halfwidth_abs - positions_over_halfwidth_abs_thresh ) ./ tukey.roll_off_factor;
+            samples( indicator_taper ) = ( 1 + cos( pi * positions_over_halfwidth_abs_diff_over_length( indicator_taper ) ) ) / 2;
 
-        end % function samples = compute_samples_scalar( tukey, positions, widths_over_2 )
+        end % function samples = compute_samples_scalar( tukey, positions_over_halfwidth )
 
         %------------------------------------------------------------------
         % string array (scalar)

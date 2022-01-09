@@ -3,7 +3,7 @@
 %
 % author: Martin F. Schiffner
 % date: 2021-08-10
-% modified: 2021-08-11
+% modified: 2022-01-09
 %
 classdef hann < windows.window
 
@@ -48,7 +48,7 @@ classdef hann < windows.window
         %------------------------------------------------------------------
         % compute samples (scalar)
         %------------------------------------------------------------------
-        function samples = compute_samples_scalar( ~, positions, widths_over_2 )
+        function samples = compute_samples_scalar( ~, positions_over_halfwidth )
 
             %--------------------------------------------------------------
             % 1.) check arguments
@@ -59,9 +59,9 @@ classdef hann < windows.window
             %--------------------------------------------------------------
             % 2.) compute samples (scalar)
             %--------------------------------------------------------------
-            samples = ( abs( positions ) < widths_over_2 ) .* ( 1 + cos( pi * positions ./ widths_over_2 ) ) / 2;
+            samples = ( abs( positions_over_halfwidth ) < 1 ) .* ( 1 + cos( pi * positions_over_halfwidth ) ) / 2;
 
-        end % function samples = compute_samples_scalar( ~, positions, widths_over_2 )
+        end % function samples = compute_samples_scalar( ~, positions_over_halfwidth )
 
         %------------------------------------------------------------------
         % string array (scalar)
