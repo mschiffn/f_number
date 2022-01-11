@@ -6,7 +6,7 @@
 %
 % author: Martin F. Schiffner
 % date: 2021-09-06
-% modified: 2022-01-07
+% modified: 2022-01-11
 %
 classdef constant < f_numbers.f_number
 
@@ -16,11 +16,13 @@ classdef constant < f_numbers.f_number
 	properties (SetAccess = private)
 
         % independent properties
-        distance_deg ( 1, 1 ) double { mustBeNonnegative, mustBeNonempty } = 5	% fixed angular distance (degree)
-        F_number_ub ( 1, 1 ) double { mustBeNonnegative, mustBeNonempty } = 3	% upper bound on the F-number (1)
+        distance_deg ( 1, 1 ) double { mustBeNonnegative, mustBeNonempty, mustBeLessThanOrEqual( distance_deg, 90 ) } = 5	% fixed angular distance (degree)
+        F_number_ub ( 1, 1 ) double { mustBePositive, mustBeNonempty } = 3	% upper bound on the F-number (1)
 
         % dependent properties
-        thresh ( 1, 1 ) double { mustBeNonnegative, mustBeNonempty } = sin( 5 * pi / 180 )	% additive constant resulting from the fixed angular distance (1)
+        distance_rad ( 1, 1 ) double { mustBeNonnegative, mustBeNonempty } = deg2rad( 5 )                           % fixed angular distance (rad)
+        sin_distance_deg ( 1, 1 ) double { mustBeNonnegative, mustBeNonempty } = sin( deg2rad( 5 ) )                % additive constant resulting from the fixed angular distance (1)
+        one_plus_cos_distance_deg ( 1, 1 ) double { mustBeNonnegative, mustBeNonempty } = 1 + cos( deg2rad( 5 ) )	% additive constant resulting from the fixed angular distance (1)
 
     end % properties
 
@@ -37,10 +39,16 @@ classdef constant < f_numbers.f_number
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
-            % ensure two arguments
-            narginchk( 2, 2 );
+            % ensure at least one and at most two arguments
+            narginchk( 1, 2 );
 
             % property validation function ensures valid distances_deg
+
+            % ensure existence of nonempty F_numbers_ub
+            if nargin < 2 || isempty( F_numbers_ub )
+                F_numbers_ub = inf;
+            end
+
             % property validation function ensures valid F_numbers_ub
 
             % ensure equal number of dimensions and sizes
@@ -60,7 +68,9 @@ classdef constant < f_numbers.f_number
                 objects( index_object ).F_number_ub = F_numbers_ub( index_object );
 
                 % set dependent properties
-                objects( index_object ).thresh = sin( objects( index_object ).distance_deg * pi / 180 );
+                objects( index_object ).distance_rad = deg2rad( objects( index_object ).distance_deg );
+                objects( index_object ).sin_distance_deg = sin( objects( index_object ).distance_rad );
+                objects( index_object ).one_plus_cos_distance_deg = 1 + cos( objects( index_object ).distance_rad );
 
             end % for index_object = 1:numel( objects )
 
@@ -87,20 +97,21 @@ classdef constant < f_numbers.f_number
             %--------------------------------------------------------------
             % 2.) compute values (scalar)
             %--------------------------------------------------------------
-            % lower bound on the F-number (no overlap)
-%             F_number_lb = sqrt( max( element_pitch_over_lambda.^2, 0.25 ) - 0.25 );
-
             % detect valid frequencies
-            indicator_possible = constant.thresh * element_pitch_over_lambda < 1;
+            indicator_lb = element_pitch_over_lambda > sqrt( 1 / ( 2 * constant.one_plus_cos_distance_deg ) );
+            indicator_ub = element_pitch_over_lambda < 1 / constant.sin_distance_deg;
+            indicator_possible = indicator_lb & indicator_ub;
 
-            % enforce upper bound on the F-number
-            values = repmat( constant.F_number_ub, size( element_pitch_over_lambda ) );
+            % initialize F-number w/ zeros
+            values = zeros( size( element_pitch_over_lambda ) );
 
-            % prevent overlap of first-order grating lobes with the main lobe
-            values( indicator_possible ) = sqrt( max( 1 ./ ( 1 ./ element_pitch_over_lambda - constant.thresh ).^2, 0.25 ) - 0.25 );
+            % maintain fixed angular distance between the main lobe and the first-order grating lobes
+            temp_0 = element_pitch_over_lambda( indicator_possible ).^2;
+            values( indicator_possible ) = ( sqrt( 2 * constant.one_plus_cos_distance_deg * temp_0 - 1 ) + constant.one_plus_cos_distance_deg * constant.sin_distance_deg * temp_0 ) ./ ( 2 - 2 * constant.sin_distance_deg^2 * temp_0 );
 
             % enforce upper bound on the F-number
             values( indicator_possible ) = min( values( indicator_possible ), constant.F_number_ub );
+            values( ~indicator_ub ) = constant.F_number_ub;
 
         end % function values = compute_values_scalar( constant, element_pitch_over_lambda )
 
@@ -117,7 +128,7 @@ classdef constant < f_numbers.f_number
             %--------------------------------------------------------------
             % 2.) create string scalar
             %--------------------------------------------------------------
-            str_out = sprintf( "sampling_distance_deg_%.2f_F_ub_%.2f", constant.distance_deg, constant.F_number_ub );
+            str_out = sprintf( "distance_deg_%.2f_F_ub_%.2f", constant.distance_deg, constant.F_number_ub );
 
         end % function str_out = string_scalar( constant )
 
