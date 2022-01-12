@@ -3,7 +3,7 @@
 %
 % author: Martin F. Schiffner
 % date: 2021-08-03
-% modified: 2022-01-07
+% modified: 2022-01-12
 %
 classdef (Abstract) f_number
 
@@ -100,6 +100,115 @@ classdef (Abstract) f_number
         end % function values = compute_values( f_numbers, element_pitch_over_lambda )
 
         %------------------------------------------------------------------
+        % compute bounds on the main lobe
+        %------------------------------------------------------------------
+        function bounds = compute_bounds_main( f_numbers, element_pitch_over_lambda )
+
+            %--------------------------------------------------------------
+            % 1.) check arguments
+            %--------------------------------------------------------------
+            % ensure two arguments
+            narginchk( 2, 2 );
+
+            % method compute_values ensures class f_numbers.f_number for f_numbers
+            % method compute_values ensures cell array for element_pitch_over_lambda
+
+            % method compute_values ensures equal number of dimensions and sizes
+
+            %--------------------------------------------------------------
+            % 2.) compute bounds on the main lobe
+            %--------------------------------------------------------------
+            % compute values
+            values = compute_values( f_numbers, element_pitch_over_lambda );
+
+            % ensure cell array for values
+            if ~iscell( values )
+                values = { values };
+            end
+
+            % specify cell array for bounds
+            bounds = cell( size( f_numbers ) );
+
+            % iterate F-numbers
+            for index_object = 1:numel( f_numbers )
+
+                %----------------------------------------------------------
+                % a) check arguments
+                %----------------------------------------------------------
+                % function compute values ensured nonempty positive element_pitch_over_lambda{ index_object }
+
+                %----------------------------------------------------------
+                % b) compute bounds on the main lobe (scalar)
+                %----------------------------------------------------------
+                bounds{ index_object } = 1 ./ sqrt( 1 + ( 2 * values{ index_object } ).^2 );
+
+            end % for index_object = 1:numel( f_numbers )
+
+            % avoid cell array for single f_numbers
+            if isscalar( f_numbers )
+                bounds = bounds{ 1 };
+            end
+
+        end % function bounds = compute_bounds_main( f_numbers, element_pitch_over_lambda )
+
+        %------------------------------------------------------------------
+        % compute distances of the first-order grating lobes
+        %------------------------------------------------------------------
+        function distances = compute_distances_grating( f_numbers, element_pitch_over_lambda )
+
+            %--------------------------------------------------------------
+            % 1.) check arguments
+            %--------------------------------------------------------------
+            % ensure two arguments
+            narginchk( 2, 2 );
+
+            % method compute_bounds_main ensures class f_numbers.f_number for f_numbers
+
+            % ensure cell array for element_pitch_over_lambda
+            if ~iscell( element_pitch_over_lambda )
+                element_pitch_over_lambda = { element_pitch_over_lambda };
+            end
+
+            % ensure equal number of dimensions and sizes
+            [ f_numbers, element_pitch_over_lambda ] = auxiliary.ensureEqualSize( f_numbers, element_pitch_over_lambda );
+
+            %--------------------------------------------------------------
+            % 2.) compute distances of the first-order grating lobes
+            %--------------------------------------------------------------
+            % compute values
+            bounds = compute_bounds_main( f_numbers, element_pitch_over_lambda );
+
+            % ensure cell array for bounds
+            if ~iscell( bounds )
+                bounds = { bounds };
+            end
+
+            % specify cell array for distances
+            distances = cell( size( f_numbers ) );
+
+            % iterate F-numbers
+            for index_object = 1:numel( f_numbers )
+
+                %----------------------------------------------------------
+                % a) check arguments
+                %----------------------------------------------------------
+                % function compute values ensured nonempty positive element_pitch_over_lambda{ index_object }
+
+                %----------------------------------------------------------
+                % b) compute distances of the first-order grating lobes (scalar)
+                %----------------------------------------------------------
+                distances{ index_object } = 1 ./ element_pitch_over_lambda{ index_object } - bounds{ index_object };
+
+            end % for index_object = 1:numel( f_numbers )
+
+            % avoid cell array for single f_numbers
+            if isscalar( f_numbers )
+                distances = distances{ 1 };
+            end
+
+        end % function distances = compute_distances_grating( f_numbers, element_pitch_over_lambda )
+
+        %------------------------------------------------------------------
         % string array (overload string method)
         %------------------------------------------------------------------
         function strs_out = string( f_numbers )
@@ -132,7 +241,7 @@ classdef (Abstract) f_number
 
         end % function strs_out = string( f_numbers )
 
-	end % methods
+    end % methods
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	%% methods (Abstract, protected, hidden)
