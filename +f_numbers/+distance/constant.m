@@ -6,23 +6,23 @@
 %
 % author: Martin F. Schiffner
 % date: 2021-09-06
-% modified: 2022-01-11
+% modified: 2022-01-12
 %
 classdef constant < f_numbers.f_number
 
-	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	%% properties
-	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	properties (SetAccess = private)
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% properties
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    properties (SetAccess = private)
 
         % independent properties
         distance_deg ( 1, 1 ) double { mustBeNonnegative, mustBeNonempty, mustBeLessThanOrEqual( distance_deg, 90 ) } = 5	% fixed angular distance (degree)
         F_number_ub ( 1, 1 ) double { mustBePositive, mustBeNonempty } = 3	% upper bound on the F-number (1)
 
         % dependent properties
-        distance_rad ( 1, 1 ) double { mustBeNonnegative, mustBeNonempty } = deg2rad( 5 )                           % fixed angular distance (rad)
-        sin_distance_deg ( 1, 1 ) double { mustBeNonnegative, mustBeNonempty } = sin( deg2rad( 5 ) )                % additive constant resulting from the fixed angular distance (1)
-        one_plus_cos_distance_deg ( 1, 1 ) double { mustBeNonnegative, mustBeNonempty } = 1 + cos( deg2rad( 5 ) )	% additive constant resulting from the fixed angular distance (1)
+        distance_rad ( 1, 1 ) double { mustBeNonnegative, mustBeNonempty } = deg2rad( 5 )                       % fixed angular distance (rad)
+        sin_distance ( 1, 1 ) double { mustBeNonnegative, mustBeNonempty } = sin( deg2rad( 5 ) )                % additive constant resulting from the fixed angular distance (1)
+        one_plus_cos_distance ( 1, 1 ) double { mustBeNonnegative, mustBeNonempty } = 1 + cos( deg2rad( 5 ) )	% additive constant resulting from the fixed angular distance (1)
 
     end % properties
 
@@ -69,8 +69,8 @@ classdef constant < f_numbers.f_number
 
                 % set dependent properties
                 objects( index_object ).distance_rad = deg2rad( objects( index_object ).distance_deg );
-                objects( index_object ).sin_distance_deg = sin( objects( index_object ).distance_rad );
-                objects( index_object ).one_plus_cos_distance_deg = 1 + cos( objects( index_object ).distance_rad );
+                objects( index_object ).sin_distance = sin( objects( index_object ).distance_rad );
+                objects( index_object ).one_plus_cos_distance = 1 + cos( objects( index_object ).distance_rad );
 
             end % for index_object = 1:numel( objects )
 
@@ -98,16 +98,16 @@ classdef constant < f_numbers.f_number
             % 2.) compute values (scalar)
             %--------------------------------------------------------------
             % detect valid frequencies
-            indicator_lb = element_pitch_over_lambda > sqrt( 1 / ( 2 * constant.one_plus_cos_distance_deg ) );
-            indicator_ub = element_pitch_over_lambda < 1 / constant.sin_distance_deg;
+            indicator_lb = element_pitch_over_lambda >= sqrt( 1 / ( 2 * constant.one_plus_cos_distance ) );
+            indicator_ub = element_pitch_over_lambda < 1 / constant.sin_distance;
             indicator_possible = indicator_lb & indicator_ub;
 
             % initialize F-number w/ zeros
             values = zeros( size( element_pitch_over_lambda ) );
 
             % maintain fixed angular distance between the main lobe and the first-order grating lobes
-            temp_0 = element_pitch_over_lambda( indicator_possible ).^2;
-            values( indicator_possible ) = ( sqrt( 2 * constant.one_plus_cos_distance_deg * temp_0 - 1 ) + constant.one_plus_cos_distance_deg * constant.sin_distance_deg * temp_0 ) ./ ( 2 - 2 * constant.sin_distance_deg^2 * temp_0 );
+            temp = element_pitch_over_lambda( indicator_possible ).^2;
+            values( indicator_possible ) = ( sqrt( 2 * constant.one_plus_cos_distance * temp - 1 ) + constant.one_plus_cos_distance * constant.sin_distance * temp ) ./ ( 2 - 2 * constant.sin_distance^2 * temp );
 
             % enforce upper bound on the F-number
             values( indicator_possible ) = min( values( indicator_possible ), constant.F_number_ub );
