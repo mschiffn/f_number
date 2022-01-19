@@ -6,7 +6,7 @@
 %
 % author: Martin F. Schiffner
 % date: 2021-09-06
-% modified: 2022-01-12
+% modified: 2022-01-19
 %
 classdef constant < f_numbers.f_number
 
@@ -98,12 +98,16 @@ classdef constant < f_numbers.f_number
             % 2.) compute values (scalar)
             %--------------------------------------------------------------
             % detect valid frequencies
-            indicator_lb = element_pitch_over_lambda >= sqrt( 1 / ( 2 * constant.one_plus_cos_distance ) );
+            indicator_lb = element_pitch_over_lambda >= 1 / constant.one_plus_cos_distance;
             indicator_ub = element_pitch_over_lambda < 1 / constant.sin_distance;
+            indicator_transition = ~indicator_lb & element_pitch_over_lambda >= 0.5;
             indicator_possible = indicator_lb & indicator_ub;
 
             % initialize F-number w/ zeros
             values = zeros( size( element_pitch_over_lambda ) );
+
+            % maintain 90° angular distance of the first-order grating lobes
+            values( indicator_transition ) = sqrt( 1 ./ ( 1 ./ element_pitch_over_lambda( indicator_transition ) - 1 ).^2 - 1 ) / 2;
 
             % maintain fixed angular distance between the main lobe and the first-order grating lobes
             temp = element_pitch_over_lambda( indicator_possible ).^2;
