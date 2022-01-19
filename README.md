@@ -159,25 +159,18 @@ addpath( genpath( './f_number' ) )
 The repository has the following structure:
 
     .
-    ├── +f_numbers      # classes for various types of F-numbers (e.g., fixed, directivity-derived, proposed)
+	├── +auxiliary      # auxiliary functions (e.g., dimension and size check)
+    ├── +f_numbers      # classes for various types of F-numbers (e.g., constant, directivity-derived, proposed)
     ├── +windows        # classes for various window functions (e.g., boxcar, Hann, Tukey)
     ├── das_pw.m        # main function
     ├── LICENSE         # license file
     └── README.md       # this readme
 
-The packages +f_numbers and +windows contain an exemplary class hierarchy to manage various types of F-numbers and window functions.
-The proposed F-number can be instantiated by
-
-```matlab
-F_number_rx = f_numbers.grating.angle_lb( 45, 3 )
-```
-
-The directivity-derived F-number
-[[4]](#PerrotUlt2021) is
-
-```matlab
-F_number_rx = f_numbers.directivity.perrot( 0.918 )
-```
+The packages +f_numbers and +windows contain
+an exemplary class hierarchy to manage
+various types of
+F-numbers and
+window functions.
 
 ## Image Formation
 
@@ -194,6 +187,30 @@ The typical usage is:
 
 ```matlab
 [ image, F_number_values ] = das_pw( positions_x, positions_z, data_RF, f_s, e_theta, element_width, element_pitch, ( 1 - N_elements ) / 2, [ f_lb, f_ub ], c_ref, N_samples_shift, window, F_number);
+```
+
+The proposed F-number can be instantiated by
+
+```matlab
+chi_lb = 45;  % minimum angular distance of the first-order grating lobes
+F_ub = 3;     % maximum permissible F-number
+F_number_rx = f_numbers.grating.angle_lb( chi_lb, F_ub );
+```
+
+The directivity-derived F-numbers
+[[4]](#PerrotUlt2021),
+[[5]](#Szabo2013) are
+
+```matlab
+width_over_pitch = 0.918;  % element width-to-element pitch ratio (1)
+F_number_rx_1 = f_numbers.directivity.perrot( width_over_pitch );
+F_number_rx_2 = f_numbers.directivity.szabo( width_over_pitch );
+```
+
+The standard fixed F-number is
+
+```matlab
+F_number_rx_3 = f_numbers.constant( 3 );
 ```
 
 ## References :notebook:
