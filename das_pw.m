@@ -1,49 +1,55 @@
-function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, data_RF, f_s, e_theta, element_width, element_pitch, M_elements_start, f_bounds, c_0, index_t0, window, F_number )
-%DAS_PW Delay-and-Sum (DAS) Beamforming [ Fourier domain, steered plane wave ]
+function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, data_RF, f_s, e_theta, element_width, element_pitch, f_bounds, c_0, index_t0, window, F_number )
+% DAS_PW Delay-and-Sum (DAS) Beamforming [ Fourier domain, steered plane wave ]
 %
 % Computes a sonogram using the delay-and-sum (DAS) algorithm in
 % the Fourier domain.
-% This domain enables the exact application of
-% all time shifts independent of
-% the sampling rate.
+%
+% The Fourier domain permits
+%  1.) the independent receive focusing of different frequencies,
+%  2.) exact corrections of the round-trip times-of-flight independent of the sampling rate, and
+%  3.) the usage of frequency-dependent apodization weights.
+%
 % A uniform linear transducer array is assumed.
 %
 % -------------------------------------------------------------------------
 % INPUTS:
 % -------------------------------------------------------------------------
-% 01.) positions_x:         lateral pixel positions (m)
-% 02.) positions_z:         axial pixel positions (m)
-% 03.) data_RF:             RF data (2d array; 1st dimension: time, 2nd dimension: array element index)
-% 04.) f_s:                 sampling rate of the RF data (Hz)
-% 05.) e_theta:             propagation direction of incident plane wave (1)
-% 06.) element_width:       element width of the linear transducer array (m)
-% 07.) element_pitch:       element pitch of the linear transducer array (m)
-% 08.) M_elements_start:	index of the first element (1)
-% 09.) f_bounds:            frequency bounds (Hz)
-% 10.) c_0:                 speed of sound (m/s)
-% 11.) index_t0:            time index of the sample extracted from the focused RF signal (1)
-% 12.) window:              window function for receive apodization (  object of class windows.window )
-% 13.) F_number:            receive F-number (  object of class f_numbers.f_number )
+%   01.) positions_x:         lateral voxel positions (m)
+%   02.) positions_z:         axial voxel positions (m)
+%   03.) data_RF:             RF data (2d array; 1st dimension: time, 2nd dimension: array element index)
+%   04.) f_s:                 sampling rate of the RF data (Hz)
+%   05.) e_theta:             propagation direction of the incident plane wave (1)
+%   06.) element_width:       element width of the linear transducer array (m)
+%   07.) element_pitch:       element pitch of the linear transducer array (m)
+%   08.) f_bounds:            frequency bounds (Hz)
+%   09.) c_0:                 speed of sound (m/s)
+%   10.) index_t0:            time index of the sample extracted from the focused RF signal (1)
+%   11.) window:              window function for receive apodization (  object of class windows.window )
+%   12.) F_number:            receive F-number (  object of class f_numbers.f_number )
 %
 % -------------------------------------------------------------------------
 % OUTPUTS:
 % -------------------------------------------------------------------------
-% 01.) image:               complex-valued DAS image
-% 02.) F_number_values:     computed F-number for each frequency
-% 03.) signal:              focused RF signal for last image voxel
+%   01.) image:               complex-valued DAS image
+%   02.) F_number_values:     value of the F-number for each frequency
+%   03.) signal:              focused RF signal for last image voxel
 %
+% -------------------------------------------------------------------------
 % REFERENCES:
-%	[1] M. F. Schiffner and G. Schmitz, “Frequency-Dependent F-Number Increases the Contrast and the Spatial Resolution,” in
-%       2021 IEEE Int. Ultrasonics Symp. (IUS), 2021.
+% -------------------------------------------------------------------------
+%   [1] M. F. Schiffner and G. Schmitz, "Frequency-Dependent F-Number Improves the Contrast and the Lateral Resolution in Coherent Plane-Wave Compounding," in press
+%   [2] M. F. Schiffner and G. Schmitz, "Frequency-Dependent F-Number Increases the Contrast and the Spatial Resolution in Fast Pulse-Echo Ultrasound Imaging," in
+%       2021 IEEE Int. Ultrasonics Symp. (IUS), Virtual Symposium, Sep. 2021, in press.
 %       DOI:
+%       arXiv: https://arxiv.org/abs/2111.04593
+%       YouTube: https://www.youtube.com/watch?v=T6BoYRvQ6rg
 %
+% -------------------------------------------------------------------------
 % ABOUT:
-%	author: Martin F. Schiffner
-%	date: 2021-04-17
-%	modified: 2021-08-07
-
-% TODO: special case: constant F-number
-% TODO: maximum half-width of the aperture?
+% -------------------------------------------------------------------------
+%   author: Martin F. Schiffner
+%   date: 2021-04-17
+%   modified: 2022-01-28
 
 % print status
 time_start = tic;
@@ -53,11 +59,11 @@ fprintf( '\t %s: Delay-and-Sum (DAS) Beamforming [ Fourier domain, steered plane
 %--------------------------------------------------------------------------
 % 1.) check arguments
 %--------------------------------------------------------------------------
-% ensure at least 9 and at most 13 arguments
-narginchk( 9, 13 );
+% ensure at least 9 and at most 12 arguments
+narginchk( 9, 12 );
 
 % ensure existence of nonempty index_t0
-if nargin < 11 || isempty( index_t0 )
+if nargin < 10 || isempty( index_t0 )
 	index_t0 = 0;
 end
 
@@ -67,8 +73,8 @@ mustBeInteger( index_t0 );
 mustBeScalarOrEmpty( index_t0 );
 
 % ensure existence of nonempty window
-if nargin < 12 || isempty( window )
-	window = windows.boxcar;
+if nargin < 11 || isempty( window )
+    window = windows.boxcar;
 end
 
 % ensure class windows.window
@@ -79,8 +85,8 @@ if ~isa( window, 'windows.window' )
 end
 
 % ensure existence of nonempty F_number
-if nargin < 13 || isempty( F_number )
-	F_number = f_numbers.grating.angle_lb( 60, 1 );
+if nargin < 12 || isempty( F_number )
+    F_number = f_numbers.grating.angle_lb( 60, 1 );
 end
 
 % ensure class f_numbers.f_number
@@ -93,8 +99,12 @@ end
 %--------------------------------------------------------------------------
 % 2.) geometry
 %--------------------------------------------------------------------------
+% number of array elements
+N_elements = size( data_RF, 2 );
+M_elements = ( N_elements - 1 ) / 2;
+
 % centroids of element faces
-positions_ctr_x = (M_elements_start:-M_elements_start) * element_pitch;
+positions_ctr_x = (-M_elements:M_elements) * element_pitch;
 
 % reference position
 if e_theta( 1 ) >= 0
@@ -103,7 +113,7 @@ else
 	position_ctr_x_ref = positions_ctr_x( end );
 end
 
-% lateral distances
+% lateral distances [ N_pos_x, N_elements ]
 dist_lateral = positions_ctr_x - positions_x( : );
 
 % incident wave travel times
@@ -114,13 +124,8 @@ t_sc_lateral_squared = ( dist_lateral / c_0 ).^2;
 t_sc_axial_squared = ( positions_z / c_0 ).^2;
 
 % maximum relative time shift in the electronic focusing ( zero padding in DFT )
-% N_samples_t_add = ceil( ( sqrt( ( 2 * abs( M_elements_start ) * element_pitch )^2 + positions_z( 1 )^2 ) - positions_z( 1 ) ) * f_s / c_0 );
+% N_samples_t_add = ceil( ( sqrt( ( 2 * M_elements * element_pitch )^2 + positions_z( 1 )^2 ) - positions_z( 1 ) ) * f_s / c_0 );
 N_samples_t_add = 0;
-
-% permissible maximum half-width of the receive subaperture
-width_aperture_over_2_max = 2 * abs( M_elements_start ) * element_pitch + element_width;
-% width_aperture_over_2_min = ( 3 * element_pitch + element_width ) / 2;
-% width_aperture_over_2_max = abs( M_elements_start ) * element_pitch + 0.5 * element_width;
 
 %--------------------------------------------------------------------------
 % 3.) create frequency axis
@@ -156,8 +161,8 @@ F_number_values = compute_values( F_number, element_pitch_over_lambda );
 data_RF_dft = fft( data_RF, N_points_dft, 1 );
 data_RF_dft_analy = 2 * data_RF_dft( index_Omega_lb:index_Omega_ub, : );
 
-% half-widths of the receive subapertures
-width_aperture_over_2 = min( width_aperture_over_2_max, positions_z ./ ( 2 * F_number_values ) );
+% desired half-widths of the receive subapertures
+width_aperture_over_two_desired = positions_z ./ ( 2 * F_number_values );
 
 % initialize image w/ zeros
 image = zeros( numel( positions_z ), numel( positions_x ) );
@@ -165,11 +170,11 @@ image = zeros( numel( positions_z ), numel( positions_x ) );
 % iterate lateral voxel positions
 for index_pos_x = 1:numel( positions_x )
 
-	% print progress in percent
-	fprintf( '%5.1f %%', ( index_pos_x - 1 ) / numel( positions_x ) * 1e2 );
+    % print progress in percent
+    fprintf( '%5.1f %%', ( index_pos_x - 1 ) / numel( positions_x ) * 1e2 );
 
-	% iterate axial voxel positions
-	for index_pos_z = 1:numel( positions_z )
+    % iterate axial voxel positions
+    for index_pos_z = 1:numel( positions_z )
 
         %------------------------------------------------------------------
         % a) compute time-of-flight (TOF)
@@ -180,32 +185,55 @@ for index_pos_x = 1:numel( positions_x )
         weights = exp( 1j * axis_omega_bp * ( tof + index_t0 / f_s ) );
 
         %------------------------------------------------------------------
-        % b) compute apodization weights for current pixel
+        % b) compute apodization weights for current voxel
         %------------------------------------------------------------------
-        % frequency-dependent apodization weights
-        if isa( F_number, 'f_numbers.constant' )
-            %--------------------------------------------------------------
-            % constant F-number
-            %--------------------------------------------------------------
-            apodization_weights = compute_samples( window, dist_lateral( index_pos_x, : ), width_aperture_over_2( 1, index_pos_z ) );
-        else
-            %--------------------------------------------------------------
-            % frequency-dependent F-number
-            %--------------------------------------------------------------
-            % 1. dimension: frequency
-            % 2. dimension: element index
-            apodization_weights = compute_samples( window, dist_lateral( index_pos_x, : ), width_aperture_over_2( :, index_pos_z ) );
-        end
+        % check type of window function
+        if isa( window, 'windows.boxcar' )
 
-        apodization_weights_sum = sum( apodization_weights, 2 );
-        indicator = apodization_weights_sum < eps;
-        apodization_weights = apodization_weights ./ apodization_weights_sum;
-        apodization_weights( indicator, : ) = 0;
+            %--------------------------------------------------------------
+            % i.) simple solution for boxcar window
+            %--------------------------------------------------------------
+            window_samples = compute_samples( window, dist_lateral( index_pos_x, : ) ./ width_aperture_over_two_desired( :, index_pos_z ) );
+
+        else
+
+            %--------------------------------------------------------------
+            % ii.) complex solution for other windows
+            %--------------------------------------------------------------
+            % actual receive apertures
+            indicator_active = abs( dist_lateral( index_pos_x, : ) ) <= width_aperture_over_two_desired( :, index_pos_z );
+
+            % actual bounds of the receive aperture
+            positions_aperture_lb = zeros( numel( axis_f_bp ), 1 );
+            positions_aperture_ub = zeros( numel( axis_f_bp ), 1 );
+
+            for index_f = 1:numel( axis_f_bp )
+                positions_aperture_lb( index_f ) = min( positions_ctr_x( indicator_active( index_f, : ) ), [], 2 ) - element_width / 2;
+                positions_aperture_ub( index_f ) = max( positions_ctr_x( indicator_active( index_f, : ) ), [], 2 ) + element_width / 2;
+            end % for index_f = 1: N_samples_f
+
+            % actual width of the receive aperture
+            aperture_width_lower_over_two = positions_x( index_pos_x ) - positions_aperture_lb;
+            aperture_width_upper_over_two = positions_aperture_ub - positions_x( index_pos_x );
+
+            % sample window functions
+            indicator_lower = dist_lateral( index_pos_x, : ) < 0;
+            window_samples_lower = compute_samples( window, dist_lateral( index_pos_x, indicator_lower ) ./ aperture_width_lower_over_two );
+            window_samples_upper = compute_samples( window, dist_lateral( index_pos_x, ~indicator_lower ) ./ aperture_width_upper_over_two );
+            window_samples = [ window_samples_lower, window_samples_upper ];
+
+        end % if isa( window, 'windows.boxcar' )
+
+        % normalize window samples
+%         window_samples_sum = sum( window_samples, 2 );
+%         indicator = window_samples_sum < eps;
+%         window_samples = window_samples ./ window_samples_sum;
+%         window_samples( indicator, : ) = 0;
 
         %------------------------------------------------------------------
         % c) apply weights and focus RF signals
         %------------------------------------------------------------------
-        data_RF_dft_analy_focused = sum( apodization_weights .* weights .* data_RF_dft_analy, 2 );
+        data_RF_dft_analy_focused = sum( window_samples .* weights .* data_RF_dft_analy, 2 );
 
 %         figure( index_pos_z + 1 );
 %         temp = zeros( index_Omega_ub, 1 );
@@ -236,4 +264,4 @@ end
 time_elapsed = toc( time_start );
 fprintf( 'done! (%f s)\n', time_elapsed );
 
-end % function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, data_RF, f_s, e_theta, element_width, element_pitch, M_elements_start, f_bounds, c_0, index_t0, apodization, F_number )
+end % function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, data_RF, f_s, e_theta, element_width, element_pitch, f_bounds, c_0, index_t0, window, F_number )
