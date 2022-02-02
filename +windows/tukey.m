@@ -3,7 +3,7 @@
 %
 % author: Martin F. Schiffner
 % date: 2021-08-10
-% modified: 2022-01-09
+% modified: 2022-02-02
 %
 classdef tukey < windows.window
 
@@ -30,6 +30,14 @@ classdef tukey < windows.window
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
+            % ensure at most one argument
+            narginchk( 0, 1 );
+
+            % ensure existence of nonempty roll_off_factors
+            if nargin < 1 || isempty( roll_off_factors )
+                roll_off_factors = 0.5;
+            end
+
             % property validation functions ensure valid roll_off_factors
 
             %--------------------------------------------------------------
