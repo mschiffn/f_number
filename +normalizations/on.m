@@ -1,5 +1,5 @@
 %
-% superclass for all inactive normalizations
+% superclass for all active normalizations
 %
 % author: Martin F. Schiffner
 % date: 2022-02-07

@@ -38,15 +38,15 @@ classdef off < normalizations.normalization
 
     end % methods
 
-	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	%% methods (protected, hidden)
-	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% methods (protected, hidden)
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     methods (Access = protected, Hidden)
 
         %------------------------------------------------------------------
         % apply normalization (scalar)
         %------------------------------------------------------------------
-        function samples_norm = apply_scalar( ~, samples )
+        function samples = apply_scalar( ~, samples )
 
             %--------------------------------------------------------------
             % 1.) check arguments
@@ -55,11 +55,11 @@ classdef off < normalizations.normalization
             % calling method ensures for samples
 
             %--------------------------------------------------------------
-            % 2.) compute samples (scalar)
+            % 2.) apply normalization (scalar)
             %--------------------------------------------------------------
-            samples_norm = samples;
+            % copy samples
 
-        end % function samples_norm = apply_scalar( ~, samples )
+        end % function samples = apply_scalar( ~, samples )
 
         %------------------------------------------------------------------
         % string array (scalar)

@@ -4,7 +4,7 @@
 %
 % author: Martin F. Schiffner
 % date: 2021-08-07
-% modified: 2021-09-06
+% modified: 2022-01-19
 %
 classdef angle_lb < f_numbers.grating.grating
 
@@ -65,6 +65,13 @@ classdef angle_lb < f_numbers.grating.grating
             % enforce upper bound on the F-number
             values( indicator_impossible ) = angle_lb.F_number_ub;
 
+            % enforce anti-lobe aliasing
+            if angle_lb.distance_deg >= 0
+                f_number_aa = f_numbers.distance.constant( angle_lb.distance_deg );
+                values_aa = compute_values( f_number_aa, element_pitch_over_lambda );
+                values = max( values, values_aa );
+            end
+
         end % function values = compute_values_scalar( angle_lb, element_pitch_over_lambda )
 
         %------------------------------------------------------------------
@@ -81,6 +88,9 @@ classdef angle_lb < f_numbers.grating.grating
             % 2.) create string scalar
             %--------------------------------------------------------------
             str_out = sprintf( "angle_lb_deg_%.2f_F_ub_%.2f", angle_lb.angle_lb_deg, angle_lb.F_number_ub );
+            if angle_lb.distance_deg >= 0
+                str_out = sprintf( "%s_distance_deg_%.2f", str_out, angle_lb.distance_deg );
+            end
 
         end % function strs_out = string( angle_lb )
 
