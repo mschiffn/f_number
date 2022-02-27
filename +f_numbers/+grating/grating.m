@@ -3,7 +3,7 @@
 %
 % author: Martin F. Schiffner
 % date: 2021-08-07
-% modified: 2022-01-19
+% modified: 2022-02-27
 %
 classdef (Abstract) grating < f_numbers.f_number
 
@@ -15,7 +15,7 @@ classdef (Abstract) grating < f_numbers.f_number
         % independent properties
         angle_lb_deg ( 1, 1 ) double { mustBeNonempty, mustBeNonnegative, mustBeLessThanOrEqual( angle_lb_deg, 90 ) } = 45	% lower bound on the angular distances of the first-order grating lobes (degree)
         F_number_ub ( 1, 1 ) double { mustBeNonempty, mustBeNonnegative } = 3                                               % upper bound on the F-number
-        distance_deg ( 1, 1 ) double { mustBeNonempty, mustBeLessThanOrEqual( distance_deg, 90 ) } = 10                     % fixed angular distance to prevent lobe aliasing (degree)
+        distance_deg ( 1, 1 ) double { mustBeNonempty, mustBeLessThanOrEqual( distance_deg, 90 ) } = 10	% fixed angular distance to prevent lobe aliasing (degree)
 
         % dependent properties
         thresh ( 1, 1 ) double { mustBeNonnegative, mustBeNonempty } = sin( deg2rad( 45 ) )	% threshold resulting from lower bound on the first-order grating lobe angle

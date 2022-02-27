@@ -1,4 +1,4 @@
-function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, data_RF, f_s, e_theta, element_width, element_pitch, f_bounds, c_0, index_t0, window, F_number, normalization )
+function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, data_RF, f_s, theta_incident, element_width, element_pitch, f_bounds, c_0, index_t0, window, F_number, normalization, platform )
 % DAS_PW Delay-and-Sum (DAS) Beamforming [ Fourier domain, steered plane wave ]
 %
 % Computes a sonogram using the delay-and-sum (DAS) algorithm in
@@ -18,15 +18,16 @@ function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, 
 %   02.) positions_z:         axial voxel positions (m)
 %   03.) data_RF:             RF data (2d array; 1st dimension: time, 2nd dimension: array element index)
 %   04.) f_s:                 sampling rate of the RF data (Hz)
-%   05.) e_theta:             propagation direction of the incident plane wave (1)
+%   05.) theta_incident:	  steering angle of the incident plane wave (rad)
 %   06.) element_width:       element width of the linear transducer array (m)
 %   07.) element_pitch:       element pitch of the linear transducer array (m)
 %   08.) f_bounds:            frequency bounds (Hz)
 %   09.) c_0:                 speed of sound (m/s)
 %   10.) index_t0:            time index of the sample extracted from the focused RF signal (1)
-%   11.) window:              window function for receive apodization (  object of class windows.window )
+%   11.) window:              window function for receive apodization ( object of class windows.window )
 %   12.) F_number:            receive F-number (  object of class f_numbers.f_number )
 %   13.) normalization:       normalization of the complex-valued apodization weights ( object of class normalizations.normalization )
+%   14.) platform:            platform for all computations ( object of class platforms.platform )
 %
 % -------------------------------------------------------------------------
 % OUTPUTS:
@@ -60,8 +61,8 @@ fprintf( '\t %s: Delay-and-Sum (DAS) Beamforming [ Fourier domain, steered plane
 %--------------------------------------------------------------------------
 % 1.) check arguments
 %--------------------------------------------------------------------------
-% ensure at least 9 and at most 13 arguments
-narginchk( 9, 13 );
+% ensure at least 9 and at most 14 arguments
+narginchk( 9, 14 );
 
 % ensure existence of nonempty index_t0
 if nargin < 10 || isempty( index_t0 )
@@ -109,8 +110,30 @@ if ~isa( normalization, 'normalizations.normalization' )
     error( errorStruct );
 end
 
+% ensure existence of nonempty platform
+if nargin < 14 || isempty( platform )
+    platform = platforms.cpu;
+end
+
+% ensure class platforms.platform
+if ~isa( platform, 'platforms.platform' )
+    errorStruct.message = 'platform must be platforms.platform!';
+    errorStruct.identifier = 'das_pw:NoPlatform';
+    error( errorStruct );
+end
+
 %--------------------------------------------------------------------------
-% 2.) geometry
+% 2.) check platform
+%--------------------------------------------------------------------------
+% check platform
+if isa( platform, 'platforms.gpu' )
+    % execute GPU code string( normalization.window )
+    image = cuda.gpu_bf_das_pw_rf( positions_x, positions_z, data_RF, f_s, theta_incident, element_width, element_pitch, f_bounds( 1 ), f_bounds( 2 ), c_0, index_t0, window, F_number, normalization, platform.index );
+    return
+end
+
+%--------------------------------------------------------------------------
+% 3.) geometry
 %--------------------------------------------------------------------------
 % number of array elements
 N_elements = size( data_RF, 2 );
@@ -124,15 +147,19 @@ positions_ctr_x = (-M_elements:M_elements) * element_pitch;
 positions_lbs_x = positions_ctr_x - element_width_over_two;
 positions_ubs_x = positions_ctr_x + element_width_over_two;
 
+% propagation direction
+e_theta_x = cos( theta_incident );
+e_theta_z = sin( theta_incident );
+
 % reference position
-position_ctr_x_ref = sign( e_theta( 1 ) ) * positions_ctr_x( 1 );
+position_ctr_x_ref = sign( e_theta_x ) * positions_ctr_x( 1 );
 
 % lateral distances [ N_pos_x, N_elements ]
 dist_lateral = positions_ctr_x - positions_x( : );
 indicator_lower = dist_lateral < 0;
 
 % incident wave travel times
-t_in_plus_shift = ( e_theta( 1 ) * ( positions_x - position_ctr_x_ref ) + e_theta( 2 ) * positions_z( : ) ) / c_0 + index_t0 / f_s;
+t_in_plus_shift = ( e_theta_x * ( positions_x - position_ctr_x_ref ) + e_theta_z * positions_z( : ) ) / c_0 + index_t0 / f_s;
 
 % scattered wave travel times
 t_sc_lateral_squared = ( dist_lateral / c_0 ).^2;
@@ -144,7 +171,7 @@ t_sc_axial_squared = ( positions_z / c_0 ).^2;
 N_samples_t_add = 2000;
 
 %--------------------------------------------------------------------------
-% 3.) create frequency axis
+% 4.) create frequency axis
 %--------------------------------------------------------------------------
 % number of samples in time domain
 N_samples_t = size( data_RF, 1 );
@@ -165,7 +192,7 @@ axis_omega_bp = 2 * pi * axis_f_bp;
 N_samples_f = numel( indices_Omega );
 
 %--------------------------------------------------------------------------
-% 4.) frequency-dependent F-number
+% 5.) frequency-dependent F-number
 %--------------------------------------------------------------------------
 % element pitch-to-wavelength ratio
 element_pitch_over_lambda = element_pitch * axis_f_bp / c_0;
@@ -180,7 +207,7 @@ F_ub = sqrt( axis_f_bp .* positions_z / ( 2.88 * c_0 ) );
 F_number_values = min( F_number_values, F_ub );
 
 %--------------------------------------------------------------------------
-% 5.) electronic focusing
+% 6.) electronic focusing
 %--------------------------------------------------------------------------
 % compute DFT of RF data
 data_RF_dft = fft( data_RF, N_points_dft, 1 );
@@ -191,8 +218,6 @@ width_aperture_over_two_desired = positions_z ./ ( 2 * F_number_values );
 
 % initialize image w/ zeros
 image = zeros( numel( positions_z ), numel( positions_x ) );
-
-window_f = windows.tukey( 0.2 );
 
 % iterate lateral voxel positions
 for index_pos_x = 1:numel( positions_x )
@@ -246,11 +271,6 @@ for index_pos_x = 1:numel( positions_x )
         % normalize window samples
         window_samples = apply( normalization, window_samples );
 
-        % apply window
-%         lengths_over_two = sum( window_samples > 0, 1 ) / 2;
-%         temp = compute_samples( window_f, ( (0:N_samples_f-1).' - lengths_over_two ) ./ lengths_over_two );
-%         window_samples = window_samples .* temp;
-
         %------------------------------------------------------------------
         % c) apply weights and focus RF signals
         %------------------------------------------------------------------
@@ -289,4 +309,4 @@ end
 time_elapsed = toc( time_start );
 fprintf( 'done! (%f s)\n', time_elapsed );
 
-end % function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, data_RF, f_s, e_theta, element_width, element_pitch, f_bounds, c_0, index_t0, window, F_number, normalization )
+end % function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, data_RF, f_s, theta_incident, element_width, element_pitch, f_bounds, c_0, index_t0, window, F_number, normalization, platform )
