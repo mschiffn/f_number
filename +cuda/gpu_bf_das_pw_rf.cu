@@ -29,7 +29,7 @@
  %
  % author: Martin Schiffner
  % date: 2010-12-17
- % modified: 2022-02-26
+ % modified: 2022-03-03
  % All rights reserved!
  %
  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
@@ -120,9 +120,14 @@ int get_window_id( const mxArray* window )
 	}
 	else if( mxIsClass( window, "windows.tukey" ) )
 	{
-		if( *( ( double * ) mxGetData( mxGetProperty( window, 0, "roll_off_factor" ) ) ) == 0.2 )
+		// ensure existence of property fraction_cosine
+		if( mxGetProperty( window, 0, "fraction_cosine" ) != NULL )
 		{
-			return 2;
+			// read property fraction_cosine
+			if( *( ( double * ) mxGetData( mxGetProperty( window, 0, "fraction_cosine" ) ) ) == 0.2 )
+			{
+				return 2;
+			}
 		}
 	}
 	else if( mxIsClass( window, "windows.triangular" ) )
@@ -1077,29 +1082,41 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 
 		// copy results to host
 		checkCudaRTErrors( cudaMemcpy( image_DAS_flt_cpx, d_image_flt_cpx, size_bytes_DAS_image_RF_complex, cudaMemcpyDeviceToHost ) );
-		checkCudaRTErrors( cudaMemcpy( h_weights, d_weights, size_bytes_weights, cudaMemcpyDeviceToHost ) );
+
+		// copy weights to host
+		if( F_number_constant )
+		{
+			checkCudaRTErrors( cudaMemcpy( h_weights, d_weights, size_bytes_weights, cudaMemcpyDeviceToHost ) );
+		}
 
 		// extract complex-valued pixels and divide by weights (if appropriate)
-		for(l_z = 0; l_z < N_pos_lat_z; l_z++)
+		for( l_z = 0; l_z < N_pos_lat_z; l_z++ )
 		{
-			for(l_x = 0; l_x < N_pos_lat_x; l_x++)
+			for( l_x = 0; l_x < N_pos_lat_x; l_x++ )
 			{
-				// // check how many rx channels contributed to current pixel
-				// if( h_weights[ l_x * N_pos_lat_z + l_z ] > 0 )
-				// {
-					// image_DAS_real[ l_x * N_pos_lat_z + l_z ] = image_DAS_flt_cpx[ l_x * N_pos_lat_z + l_z ].x / ( N_order_dft * h_weights[ l_x * N_pos_lat_z + l_z ] );
-					image_DAS_real[ l_x * N_pos_lat_z + l_z ] = image_DAS_flt_cpx[ l_x * N_pos_lat_z + l_z ].x;
-					// image_DAS_imag[ l_x * N_pos_lat_z + l_z ] = image_DAS_flt_cpx[ l_x * N_pos_lat_z + l_z ].y / ( N_order_dft * h_weights[ l_x * N_pos_lat_z + l_z ] );
-					image_DAS_imag[ l_x * N_pos_lat_z + l_z ] = image_DAS_flt_cpx[ l_x * N_pos_lat_z + l_z ].y;
-				// }
+
+				image_DAS_real[ l_x * N_pos_lat_z + l_z ] = image_DAS_flt_cpx[ l_x * N_pos_lat_z + l_z ].x;
+				image_DAS_imag[ l_x * N_pos_lat_z + l_z ] = image_DAS_flt_cpx[ l_x * N_pos_lat_z + l_z ].y;
+
+				// normalize pixels for constant F-number
+				if( F_number_constant )
+				{
+					// check how many rx channels contributed to current pixel
+					if( h_weights[ l_x * N_pos_lat_z + l_z ] > 0 )
+					{
+						image_DAS_real[ l_x * N_pos_lat_z + l_z ] = image_DAS_real[ l_x * N_pos_lat_z + l_z ] / ( N_order_dft * h_weights[ l_x * N_pos_lat_z + l_z ] );
+						image_DAS_imag[ l_x * N_pos_lat_z + l_z ] = image_DAS_imag[ l_x * N_pos_lat_z + l_z ] / ( N_order_dft * h_weights[ l_x * N_pos_lat_z + l_z ] );
+					}
+				} // if( F_number_constant )
+
 				// else
 				// {
 				// 	// no rx channel contributed to current pixel
 				// 	image_DAS_real[ l_x * N_pos_lat_z + l_z ] = 0;
 				// 	image_DAS_imag[ l_x * N_pos_lat_z + l_z ] = 0;
 				// }
-			} // for(l_x = 0; l_x < N_pos_lat_x; l_x++)
-		} // for(l_z = 0; l_z < N_pos_lat_z; l_z++)
+			} // for( l_x = 0; l_x < N_pos_lat_x; l_x++ )
+		} // for( l_z = 0; l_z < N_pos_lat_z; l_z++ )
 
 		// place stop event into the default stream
 		checkCudaRTErrors( cudaEventRecord( stop, 0 ) );
