@@ -217,27 +217,28 @@ F_number_rx_3 = f_numbers.constant( 3 );
 
 1. <a name="SchiffnerIUS2021"></a>
 M. F. Schiffner and G. Schmitz,
-"Frequency-Dependent F-Number Increases the Contrast and the Spatial Resolution in Fast Pulse-Echo Ultrasound Imaging,"
-2021 IEEE Int. Ultrasonics Symp. (IUS), in press.
-[![arXiv](https://img.shields.io/badge/arXiv-2111.04593-b31b1b.svg)](http://arxiv.org/abs/2111.04593)
+"Frequency-dependent F-number increases the contrast and the spatial resolution in fast pulse-echo ultrasound imaging,"
+2021 IEEE Int. Ultrasonics Symp. (IUS), Xi’an, China, Sep. 2021, pp. 1–4.
+[![DOI:10.1109/IUS52206.2021.9593488](https://img.shields.io/badge/DOI-10.1109%2FIUS52206.2021.9593488-blue)](https://doi.org/10.1109/IUS52206.2021.9593488)
+[![arXiv](https://img.shields.io/badge/arXiv-2111.04593-b31b1b.svg)](https://arxiv.org/abs/2111.04593)
 [![Watch on YouTube](https://img.shields.io/youtube/views/T6BoYRvQ6rg?label=YouTube)](https://www.youtube.com/watch?v=T6BoYRvQ6rg)
 
 2. <a name="MontaldoITUFFC2009"></a>
 G. Montaldo, M. Tanter, J. Bercoff, N. Benech, and M. Fink,
 “Coherent plane-wave compounding for very high frame rate ultrasonography and transient elastography,"
 IEEE Trans. Ultrason., Ferroelectr., Freq. Control, vol. 56, no. 3, pp. 489–506, Mar. 2009.
-[![DOI:10.1109/TUFFC.2009.1067](https://img.shields.io/badge/DOI-10.1109%2FTUFFC.2009.1067-blue)](http://dx.doi.org/10.1109/TUFFC.2009.1067)
+[![DOI:10.1109/TUFFC.2009.1067](https://img.shields.io/badge/DOI-10.1109%2FTUFFC.2009.1067-blue)](https://doi.org/10.1109/TUFFC.2009.1067)
 
 3. <a name="JensenUlt2006"></a>
 J. A. Jensen, S. I. Nikolov, K. L. Gammelmark, and M. H. Pedersen,
 “Synthetic aperture ultrasound imaging,” Ultrasonics, vol. 44, Supplement, e5–e15, Dec. 2006.
-[![DOI:10.1016/j.ultras.2006.07.017](https://img.shields.io/badge/DOI-10.1016%2Fj.ultras.2006.07.017-blue)](http://dx.doi.org/10.1016/j.ultras.2006.07.017)
+[![DOI:10.1016/j.ultras.2006.07.017](https://img.shields.io/badge/DOI-10.1016%2Fj.ultras.2006.07.017-blue)](https://doi.org/10.1016/j.ultras.2006.07.017)
 
 4. <a name="PerrotUlt2021"></a>
 V. Perrot, M. Polichetti, F. Varray, and D. Garcia,
 “So you think you can DAS? A viewpoint on delay-and-sum beamforming,”
 Ultrasonics, vol. 111, p. 106 309, Mar. 2021.
-[![DOI:10.1016/j.ultras.2020.106309](https://img.shields.io/badge/DOI-10.1016%2Fj.ultras.2020.106309-blue)](http://dx.doi.org/10.1016/j.ultras.2020.106309)
+[![DOI:10.1016/j.ultras.2020.106309](https://img.shields.io/badge/DOI-10.1016%2Fj.ultras.2020.106309-blue)](https://doi.org/10.1016/j.ultras.2020.106309)
 
 5. <a name="Szabo2013"></a>
 T. L. Szabo, Diagnostic Ultrasound Imaging: Inside Out, 2nd. Elsevier Academic Press, Dec. 2013
@@ -246,10 +247,10 @@ T. L. Szabo, Diagnostic Ultrasound Imaging: Inside Out, 2nd. Elsevier Academic P
 B. Delannoy, R. Torguet, C. Bruneel, E. Bridoux, J. M. Rouvaen, and H. Lasota,
 “Acoustical image reconstruction in parallel-processing analog electronic systems,”
 J. Appl. Phys., vol. 50, no. 5, pp. 3153–3159, May 1979.
-[![DOI:10.1063/1.326397](https://img.shields.io/badge/DOI-10.1063%2F1.326397-blue)](http://dx.doi.org/10.1063/1.326397)
+[![DOI:10.1063/1.326397](https://img.shields.io/badge/DOI-10.1063%2F1.326397-blue)](https://doi.org/10.1063/1.326397)
 
 7. <a name="BruneelJAP1978"></a>
 C. Bruneel, E. Bridoux, B. Delannoy, B. Nongaillard, J. M. Rouvaen, and R. Torguet,
 “Effect of spatial sampling on an acoustical image reconstruction,”
 J. Appl. Phys., vol. 49, no. 2, pp. 569–573, Feb. 1978.
-[![DOI:10.1063/1.324680](https://img.shields.io/badge/DOI-10.1063%2F1.324680-blue)](http://dx.doi.org/10.1063/1.324680)
+[![DOI:10.1063/1.324680](https://img.shields.io/badge/DOI-10.1063%2F1.324680-blue)](https://doi.org/10.1063/1.324680)
