@@ -40,7 +40,7 @@ classdef directivity < f_numbers.f_number
 
             % property validation function ensures valid widths_over_pitch
 
-            % ensure existence of nonempty attenuations_dB
+            % ensure existence of nonempty obliquity_factors
             if nargin < 2 || isempty( obliquity_factors )
                 obliquity_factors = f_numbers.directivity.obliquity.soft;
             end

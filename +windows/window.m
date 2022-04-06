@@ -90,6 +90,11 @@ classdef (Abstract) window
         end % function samples = compute_samples( windows, positions_over_halfwidth )
 
         %------------------------------------------------------------------
+        % TODO: compute derivatives
+        %------------------------------------------------------------------
+        
+
+        %------------------------------------------------------------------
         % string array (overload string method)
         %------------------------------------------------------------------
         function strs_out = string( windows )

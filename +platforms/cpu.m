@@ -44,25 +44,6 @@ classdef cpu < platforms.platform
     methods (Access = protected, Hidden)
 
         %------------------------------------------------------------------
-        % apply normalization (scalar)
-        %------------------------------------------------------------------
-        function samples_norm = apply_scalar( ~, samples )
-
-            %--------------------------------------------------------------
-            % 1.) check arguments
-            %--------------------------------------------------------------
-            % calling method ensures class platforms.platform for wiener (scalar)
-            % calling method ensures for samples
-
-            %--------------------------------------------------------------
-            % 2.) compute samples (scalar)
-            %--------------------------------------------------------------
-            samples_sum = sum( samples, 2 );
-            samples_norm = samples ./ samples_sum;
-
-        end % function samples_norm = apply_scalar( ~, samples )
-
-        %------------------------------------------------------------------
         % string array (scalar)
         %------------------------------------------------------------------
         function str_out = string_scalar( ~ )
@@ -82,4 +63,3 @@ classdef cpu < platforms.platform
     end % methods (Access = protected, Hidden)
 
 end % classdef cpu < platforms.platform
-
