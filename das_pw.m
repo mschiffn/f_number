@@ -39,11 +39,10 @@ function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, 
 % -------------------------------------------------------------------------
 % REFERENCES:
 % -------------------------------------------------------------------------
-%   [1] M. F. Schiffner and G. Schmitz, "Frequency-Dependent F-Number Improves the Contrast and the Lateral Resolution in Coherent Plane-Wave Compounding," in press
-%   [2] M. F. Schiffner and G. Schmitz, "Frequency-Dependent F-Number Increases the Contrast and the Spatial Resolution in Fast Pulse-Echo Ultrasound Imaging," in
-%       2021 IEEE Int. Ultrasonics Symp. (IUS), Virtual Symposium, Sep. 2021, in press.
-%       DOI:
-%       arXiv: https://arxiv.org/abs/2111.04593
+%   [1] M. F. Schiffner and G. Schmitz, "Frequency-dependent F-number increases the contrast and the spatial resolution in fast pulse-echo ultrasound imaging,"
+%       2021 IEEE Int. Ultrasonics Symp. (IUS), Xi’an, China, Sep. 2021, pp. 1–4.
+%       DOI: https://doi.org/10.1109/IUS52206.2021.9593488
+%       arxiv: https://arxiv.org/abs/2111.04593
 %       YouTube: https://www.youtube.com/watch?v=T6BoYRvQ6rg
 %
 % -------------------------------------------------------------------------
@@ -51,7 +50,7 @@ function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, 
 % -------------------------------------------------------------------------
 %   author: Martin F. Schiffner
 %   date: 2021-04-17
-%   modified: 2022-02-16
+%   modified: 2022-04-06
 
 % print status
 time_start = tic;

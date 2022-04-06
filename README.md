@@ -159,17 +159,20 @@ addpath( genpath( './f_number' ) )
 The repository has the following structure:
 
     .
-	├── +auxiliary      # auxiliary functions (e.g., dimension and size check)
+    ├── +auxiliary      # auxiliary functions (e.g., dimension and size check)
+    ├── +cuda           # C++/CUDA implementation and MEX interface
     ├── +f_numbers      # classes for various types of F-numbers (e.g., constant, directivity-derived, proposed)
+    ├── +normalizations # classes for various types of normalizations (e.g., off, on, window-based)
+    ├── +platforms      # classes for various types of platforms (e.g., CPU, GPU)
     ├── +windows        # classes for various window functions (e.g., boxcar, Hann, Tukey)
     ├── das_pw.m        # main function
     ├── LICENSE         # license file
     └── README.md       # this readme
 
-The packages +f_numbers and +windows contain
-an exemplary class hierarchy to manage
+The packages +f_numbers, +normalizations, and +windows contain
+exemplary class hierarchies to manage
 various types of
-F-numbers and
+F-numbers, normalizations, and
 window functions.
 
 ## Image Formation
@@ -186,15 +189,16 @@ to obtain an explanation of the input and output arguments.
 The typical usage is:
 
 ```matlab
-[ image, F_number_values ] = das_pw( positions_x, positions_z, data_RF, f_s, e_theta, element_width, element_pitch, ( 1 - N_elements ) / 2, [ f_lb, f_ub ], c_ref, N_samples_shift, window, F_number);
+[ image, F_number_values ] = das_pw( positions_x, positions_z, data_RF, f_s, theta_incident, element_width, element_pitch, [ f_lb, f_ub ], c_ref, N_samples_shift, window, F_number, normalization, platform );
 ```
 
 The proposed F-number can be instantiated by
 
 ```matlab
-chi_lb = 45;  % minimum angular distance of the first-order grating lobes
+chi_lb = 45;  % minimum angular distance of the first-order grating lobes (°)
 F_ub = 3;     % maximum permissible F-number
-F_number_rx = f_numbers.grating.angle_lb( chi_lb, F_ub );
+delta = 10;   % safety margin for anti-lobe aliasing (°)
+F_number_rx = f_numbers.grating.angle_lb( chi_lb, F_ub, delta );
 ```
 
 The directivity-derived F-numbers
@@ -212,6 +216,13 @@ The standard fixed F-number is
 ```matlab
 F_number_rx_3 = f_numbers.constant( 3 );
 ```
+
+The MEX interface to the C++/CUDA implementation must be compiled:
+
+```matlab
+mexcuda '-L/usr/local/cuda/lib64' -lcudart -lcufft gpu_bf_das_pw_rf.cu
+```
+You might have to adapt the library path (here: /usr/local/cuda/lib64) to your system.
 
 ## References :notebook:
 
