@@ -7,6 +7,7 @@
 ![Stargazers][stars-shield]
 [![View on File Exchange][fex-shield]][fex-url]
 [![Watch on YouTube](https://img.shields.io/youtube/views/T6BoYRvQ6rg?label=YouTube)](https://www.youtube.com/watch?v=T6BoYRvQ6rg)
+[![ko-fi][ko-fi-shield]][ko-fi-url]
 
 [license-shield]: https://img.shields.io/github/license/mschiffn/f_number
 [license-url]: https://github.com/mschiffn/f_number/COPYING
@@ -15,8 +16,12 @@
 [stars-shield]: https://img.shields.io/github/stars/mschiffn/f_number.svg
 [fex-shield]: https://www.mathworks.com/matlabcentral/images/matlab-file-exchange.svg
 [fex-url]: https://www.mathworks.com/matlabcentral/fileexchange/99309-frequency-dependent-f-number-for-cpwc
+[ko-fi-shield]: https://img.shields.io/badge/ko--fi-Donate%20a%20coffee-yellowgreen
+[ko-fi-url]: https://ko-fi.com/L4L7CCWYS
 
-Simple [MATLAB](https://mathworks.com/products/matlab.html) implementation of
+Simple
+[MATLAB](https://mathworks.com/products/matlab.html) and
+[CUDA](https://developer.nvidia.com/cuda-zone) implementations of
 the frequency-dependent F-number
 [[1]](#SchiffnerIUS2021) for
 coherent plane-wave compounding.
