@@ -2,23 +2,26 @@
 
 <!-- shields -->
 [![GitHub][license-shield]][license-url]
-![GitHub repo size][size-shield]
-![GitHub Downloads][downloads-shield]
-![Stargazers][stars-shield]
+![GitHub repository size][size-shield]
+![GitHub language count][languages-shield]
+![GitHub stargazers][stars-shield]
+![GitHub forks][forks-shield]
 [![View on File Exchange][fex-shield]][fex-url]
 [![Watch on YouTube](https://img.shields.io/youtube/views/T6BoYRvQ6rg?label=YouTube)](https://www.youtube.com/watch?v=T6BoYRvQ6rg)
 [![ko-fi][ko-fi-shield]][ko-fi-url]
 
-[license-shield]: https://img.shields.io/github/license/mschiffn/f_number
-[license-url]: https://github.com/mschiffn/f_number/COPYING
+[license-shield]: https://img.shields.io/badge/license-citationware-blue
+[license-url]: https://github.com/mschiffn/f_number/blob/main/LICENSE
 [size-shield]: https://img.shields.io/github/repo-size/mschiffn/f_number
-[downloads-shield]: https://img.shields.io/github/downloads/mschiffn/f_number/total
+[languages-shield]: https://img.shields.io/github/languages/count/mschiffn/f_number
 [stars-shield]: https://img.shields.io/github/stars/mschiffn/f_number.svg
+[forks-shield]: https://img.shields.io/github/forks/mschiffn/f_number.svg
 [fex-shield]: https://www.mathworks.com/matlabcentral/images/matlab-file-exchange.svg
 [fex-url]: https://www.mathworks.com/matlabcentral/fileexchange/99309-frequency-dependent-f-number-for-cpwc
 [ko-fi-shield]: https://img.shields.io/badge/ko--fi-Donate%20a%20coffee-yellowgreen
 [ko-fi-url]: https://ko-fi.com/L4L7CCWYS
 
+<!-- content -->
 Simple
 [MATLAB](https://mathworks.com/products/matlab.html) and
 [CUDA](https://developer.nvidia.com/cuda-zone) implementations of
