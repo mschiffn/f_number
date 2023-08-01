@@ -1,9 +1,10 @@
 %
 % abstract superclass for all F-numbers
 %
-% author: Martin F. Schiffner
-% date: 2021-08-03
-% modified: 2022-01-12
+% ABOUT:
+%   author: Martin F. Schiffner
+%   date: 2021-08-03
+%   modified: 2023-04-15
 %
 classdef (Abstract) f_number
 
@@ -47,6 +48,19 @@ classdef (Abstract) f_number
         % compute values
         %------------------------------------------------------------------
         function values = compute_values( f_numbers, element_pitch_over_lambda )
+            % compute_values Compute values of the F-number for a given normalized element pitch.
+            %
+            % values = compute_values( f_numbers, element_pitch_over_lambda );
+            % values = f_number.compute_values( element_pitch_over_lambda );
+            %
+            % The method is vectorized.
+            %
+            % INPUTS:
+            %   f_numbers: array of F-number objects
+            %   element_pitch_over_lambda: cell array of arrays of normalized element pitches
+            %
+            % OUTPUTS:
+            %   values: cell array of F-number values
 
             %--------------------------------------------------------------
             % 1.) check arguments
@@ -103,6 +117,22 @@ classdef (Abstract) f_number
         % compute bounds on the main lobe
         %------------------------------------------------------------------
         function bounds = compute_bounds_main( f_numbers, element_pitch_over_lambda )
+            % compute_bounds_main Compute bounds of the main lobe.
+            %
+            % Returns the normalized lateral cutoff frequencies of the main lobe.
+            %
+            % bounds = compute_bounds_main( f_numbers, element_pitch_over_lambda );
+            % bounds = f_number.compute_bounds_main( element_pitch_over_lambda );
+            %
+            % The method is vectorized.
+            % An error-free aperture is assumed.
+            %
+            % INPUTS:
+            %   f_numbers: array of F-number objects
+            %   element_pitch_over_lambda: cell array of arrays of normalized element pitches
+            %
+            % OUTPUTS:
+            %   bounds: cell array of main lobe bounds
 
             %--------------------------------------------------------------
             % 1.) check arguments
@@ -155,6 +185,7 @@ classdef (Abstract) f_number
         % compute distances of the first-order grating lobes
         %------------------------------------------------------------------
         function distances = compute_distances_grating( f_numbers, element_pitch_over_lambda )
+            % compute_distances_grating Compute signed distances of the first-order grating lobe.
 
             %--------------------------------------------------------------
             % 1.) check arguments
@@ -212,6 +243,7 @@ classdef (Abstract) f_number
         % string array (overload string method)
         %------------------------------------------------------------------
         function strs_out = string( f_numbers )
+            % string Create strings with the F-number properties.
 
             %--------------------------------------------------------------
             % 1.) check arguments

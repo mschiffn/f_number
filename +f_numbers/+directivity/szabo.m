@@ -2,11 +2,15 @@
 % superclass for all directivity-derived F-numbers
 % boundary condition: rigid baffle
 %
-% approximation and settings proposed by Szabo
+% approximation and settings proposed by Szabo [1]
 %
-% author: Martin F. Schiffner
-% date: 2021-08-06
-% modified: 2022-01-08
+% REFERENCES:
+%   [1] T. L. Szabo, Diagnostic Ultrasound Imaging: Inside Out, 2nd. Elsevier Academic Press, Dec. 2013.
+%
+% ABOUT:
+%   author: Martin F. Schiffner
+%   date: 2021-08-06
+%   modified: 2023-04-15
 %
 classdef szabo < f_numbers.directivity.rigid
 
@@ -19,6 +23,24 @@ classdef szabo < f_numbers.directivity.rigid
         % constructor
         %------------------------------------------------------------------
         function objects = szabo( widths_over_pitch )
+            % szabo Create directivity-derived F-numbers according to Szabo.
+            %
+            % This F-number is described in Eq. (10.11) in [1].
+            %
+            % objects = f_numbers.directivity.rigid.szabo( widths_over_pitch );
+            %
+            % The method is vectorized.
+            % The size of objects equals the
+            %
+            % INPUTS:
+            %   widths_over_pitch: array of element width over element pitch
+            %
+            % OUTPUTS:
+            %   objects: array of f_numbers.directivity.rigid.szabo
+            %
+            % REFERENCES:
+            %   [1] T. L. Szabo, Diagnostic Ultrasound Imaging: Inside Out, 2nd. Elsevier Academic Press, Dec. 2013.
+            %
 
             %--------------------------------------------------------------
             % 1.) check arguments

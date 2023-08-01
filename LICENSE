@@ -1,4 +1,4 @@
-Copyright (c) 2021-2022, Martin F. Schiffner
+Copyright (c) 2021-2023, Martin F. Schiffner
 All rights reserved.
 
 This is citationware.
@@ -23,10 +23,9 @@ the following conditions are met:
   this GitHub repository and the scientific paper
 
   [1] M. F. Schiffner and G. Schmitz,
-      "Frequency-dependent F-number increases the contrast and the spatial resolution in fast pulse-echo ultrasound imaging,"
-      2021 IEEE Int. Ultrasonics Symp. (IUS), Xi’an, China, Sep. 2021, pp. 1–4.
-      DOI: https://doi.org/10.1109/IUS52206.2021.9593488
-      arxiv: https://arxiv.org/abs/2111.04593
+      "Frequency-dependent F-number suppresses grating lobes and improves the lateral resolution in coherent plane-wave compounding,"
+      IEEE Trans. Ultrason., Ferroelectr., Freq. Control (2023).
+      DOI: https://doi.org/10.1109/TUFFC.2023.3291612
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,

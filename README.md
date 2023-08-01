@@ -26,21 +26,28 @@ Simple
 [MATLAB](https://mathworks.com/products/matlab.html) and
 [CUDA](https://developer.nvidia.com/cuda-zone) implementations of
 the frequency-dependent F-number
-[[1]](#SchiffnerIUS2021) for
+[[1]](#SchiffnerITUFFC2023),
+[[2]](#SchiffnerIUS2021) for
 coherent plane-wave compounding.
 
 ![CIRS040](./figures/f_number_effect.png)
 
 ## What is an F-Number?
 
-The F-number significantly reduces
+The F-number is
+a user-defined parameter of
+a technique known as
+"dynamic receive aperture".
+Such apertures reduce
 image artifacts in
 all image formation methods using
 the delay-and-sum (DAS) algorithm, such as
 
-- coherent plane-wave compounding [[2]](#MontaldoITUFFC2009), or
-- synthetic aperture imaging [[3]](#JensenUlt2006).
+- coherent plane-wave compounding [[3]](#MontaldoITUFFC2009), or
+- synthetic aperture imaging [[4]](#JensenUlt2006).
 
+The receive aperture widens with
+the focal length.
 The F-number, for
 a uniform linear transducer array, equals
 the quotient of
@@ -63,14 +70,14 @@ the optimal F-number attribute
 the image artifacts to
 two different phenomena:
 
-1. Noise [[4]](#PerrotUlt2021), [[5]](#Szabo2013), [[2]](#MontaldoITUFFC2009):
+1. Noise [[5]](#PerrotUlt2021), [[6]](#Szabo2013), [[3]](#MontaldoITUFFC2009):
 The directivity of
 the array elements attenuates
 the echoes and reduces
 the signal-to-noise ratio of
 the recorded signals.
 
-2. Grating lobes [[6]](#DelannoyJAP1979), [[7]](#BruneelJAP1978):
+2. Grating lobes [[7]](#DelannoyJAP1979), [[8]](#BruneelJAP1978):
 The width of
 the receive subaperture determines
 the grating lobe-to-main lobe ratio.
@@ -113,7 +120,8 @@ The proposed F-number not only eliminates
 image artifacts but also maintains
 the spatial resolution of
 the full aperture
-[[1]](#proc:SchiffnerIUS2021).
+[[1]](#proc:SchiffnerITUFFC2023),
+[[2]](#proc:SchiffnerIUS2021).
 
 This F-number, in particular, prevents
 the first-order grating lobes from insonifying
@@ -210,8 +218,8 @@ F_number_rx = f_numbers.grating.angle_lb( chi_lb, F_ub, delta );
 ```
 
 The directivity-derived F-numbers
-[[4]](#PerrotUlt2021),
-[[5]](#Szabo2013) are
+[[5]](#PerrotUlt2021),
+[[6]](#Szabo2013) are
 
 ```matlab
 width_over_pitch = 0.918;  % element width-to-element pitch ratio (1)
@@ -232,9 +240,15 @@ mexcuda '-L/usr/local/cuda/lib64' -lcudart -lcufft gpu_bf_das_pw_rf.cu
 ```
 You might have to adapt the library path (here: /usr/local/cuda/lib64) to your system.
 
-## References :notebook:
+## :notebook: References
 
-1. <a name="SchiffnerIUS2021"></a>
+1. <a name="SchiffnerITUFFC2023"></a>
+M. F. Schiffner and G. Schmitz,
+"Frequency-dependent F-number suppresses grating lobes and improves the lateral resolution in coherent plane-wave compounding,"
+IEEE Trans. Ultrason., Ferroelectr., Freq. Control (2023).
+[![DOI:10.1109/TUFFC.2023.3291612](https://img.shields.io/badge/DOI-10.1109%2FTUFFC.2023.3291612-blue)](https://doi.org/10.1109/TUFFC.2023.3291612)
+
+2. <a name="SchiffnerIUS2021"></a>
 M. F. Schiffner and G. Schmitz,
 "Frequency-dependent F-number increases the contrast and the spatial resolution in fast pulse-echo ultrasound imaging,"
 2021 IEEE Int. Ultrasonics Symp. (IUS), Xi’an, China, Sep. 2021, pp. 1–4.
@@ -242,33 +256,33 @@ M. F. Schiffner and G. Schmitz,
 [![arXiv](https://img.shields.io/badge/arXiv-2111.04593-b31b1b.svg)](https://arxiv.org/abs/2111.04593)
 [![Watch on YouTube](https://img.shields.io/youtube/views/T6BoYRvQ6rg?label=YouTube)](https://www.youtube.com/watch?v=T6BoYRvQ6rg)
 
-2. <a name="MontaldoITUFFC2009"></a>
+3. <a name="MontaldoITUFFC2009"></a>
 G. Montaldo, M. Tanter, J. Bercoff, N. Benech, and M. Fink,
 “Coherent plane-wave compounding for very high frame rate ultrasonography and transient elastography,"
 IEEE Trans. Ultrason., Ferroelectr., Freq. Control, vol. 56, no. 3, pp. 489–506, Mar. 2009.
 [![DOI:10.1109/TUFFC.2009.1067](https://img.shields.io/badge/DOI-10.1109%2FTUFFC.2009.1067-blue)](https://doi.org/10.1109/TUFFC.2009.1067)
 
-3. <a name="JensenUlt2006"></a>
+4. <a name="JensenUlt2006"></a>
 J. A. Jensen, S. I. Nikolov, K. L. Gammelmark, and M. H. Pedersen,
 “Synthetic aperture ultrasound imaging,” Ultrasonics, vol. 44, Supplement, e5–e15, Dec. 2006.
 [![DOI:10.1016/j.ultras.2006.07.017](https://img.shields.io/badge/DOI-10.1016%2Fj.ultras.2006.07.017-blue)](https://doi.org/10.1016/j.ultras.2006.07.017)
 
-4. <a name="PerrotUlt2021"></a>
+5. <a name="PerrotUlt2021"></a>
 V. Perrot, M. Polichetti, F. Varray, and D. Garcia,
 “So you think you can DAS? A viewpoint on delay-and-sum beamforming,”
 Ultrasonics, vol. 111, p. 106 309, Mar. 2021.
 [![DOI:10.1016/j.ultras.2020.106309](https://img.shields.io/badge/DOI-10.1016%2Fj.ultras.2020.106309-blue)](https://doi.org/10.1016/j.ultras.2020.106309)
 
-5. <a name="Szabo2013"></a>
+6. <a name="Szabo2013"></a>
 T. L. Szabo, Diagnostic Ultrasound Imaging: Inside Out, 2nd. Elsevier Academic Press, Dec. 2013
 
-6. <a name="DelannoyJAP1979"></a>
+7. <a name="DelannoyJAP1979"></a>
 B. Delannoy, R. Torguet, C. Bruneel, E. Bridoux, J. M. Rouvaen, and H. Lasota,
 “Acoustical image reconstruction in parallel-processing analog electronic systems,”
 J. Appl. Phys., vol. 50, no. 5, pp. 3153–3159, May 1979.
 [![DOI:10.1063/1.326397](https://img.shields.io/badge/DOI-10.1063%2F1.326397-blue)](https://doi.org/10.1063/1.326397)
 
-7. <a name="BruneelJAP1978"></a>
+8. <a name="BruneelJAP1978"></a>
 C. Bruneel, E. Bridoux, B. Delannoy, B. Nongaillard, J. M. Rouvaen, and R. Torguet,
 “Effect of spatial sampling on an acoustical image reconstruction,”
 J. Appl. Phys., vol. 49, no. 2, pp. 569–573, Feb. 1978.

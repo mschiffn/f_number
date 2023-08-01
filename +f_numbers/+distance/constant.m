@@ -4,9 +4,10 @@
 % the main lobe and
 % the first-order grating lobes
 %
-% author: Martin F. Schiffner
-% date: 2021-09-06
-% modified: 2022-01-19
+% ABOUT:
+%   author: Martin F. Schiffner
+%   date: 2021-09-06
+%   modified: 2023-04-15
 %
 classdef constant < f_numbers.f_number
 
