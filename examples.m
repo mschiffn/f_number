@@ -261,12 +261,20 @@ c_limits = [ -dynamic_range_dB, 0 ];
 
 figure( 5 );
 for index_bandwidth = 1:numel( fractional_bandwidths )
+
     subplot( 2, numel( fractional_bandwidths ), index_bandwidth );
     imagesc( positions_x * 1e3, positions_z * 1e3, 20 * log10( abs( images{ index_bandwidth } ) / max( abs( images{ index_bandwidth }( : ) ) ) ), c_limits );
     title( sprintf( 'Fractional bandwidth: %d %%', fractional_bandwidths( index_bandwidth ) * 1e2 ) );
     xlabel( 'Lateral position (mm)' );
     ylabel( 'Axial position (mm)' );
     colormap gray;
-    subplot( 2, numel( fractional_bandwidths ), index_bandwidth + numel( fractional_bandwidths ) );
-    imagesc( positions_x * 1e3, positions_z * 1e3, 20 * log10( abs( images{ index_bandwidth } ) / max( abs( images{ index_bandwidth }( : ) ) ) ), c_limits );
+
+    if index_bandwidth > 1
+        subplot( 2, numel( fractional_bandwidths ), index_bandwidth + numel( fractional_bandwidths ) );
+        imagesc( positions_x * 1e3, positions_z * 1e3, 20 * log10( abs( images{ 1 } - images{ index_bandwidth } ) / max( abs( images{ 1 }( : ) ) ) ), c_limits );
+        title( 'Difference' );
+        xlabel( 'Lateral position (mm)' );
+        ylabel( 'Axial position (mm)' );
+    end
+
 end
