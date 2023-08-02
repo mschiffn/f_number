@@ -67,7 +67,9 @@ function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, 
 % -------------------------------------------------------------------------
 % REMARKS:
 % -------------------------------------------------------------------------
-% - The steering of the receive beam should be avoided.
+% - The steering of the receive beam
+%   (i.e., lateral voxel positions outside the lateral array bounds) is
+%   supported but not recommended.
 %
 % -------------------------------------------------------------------------
 % ABOUT:
@@ -104,7 +106,7 @@ if ~all( positions_z > 0 )
 end
 
 % ensure numeric and real-valued matrix for data_RF
-if ~( ismatrix( data_RF ) && isnumeric( data_RF ) && isreal( data_RF ) )
+if ~( isnumeric( data_RF ) && isreal( data_RF ) && ismatrix( data_RF ) )
     errorStruct.message = 'data_RF must be a numeric and real-valued matrix!';
     errorStruct.identifier = 'das_pw:NoNumericAndRealMatrix';
     error( errorStruct );
@@ -118,7 +120,7 @@ if ~( size( data_RF, 1 ) > 1 && size( data_RF, 2 ) > 1 )
 end
 
 % ensure numeric and real-valued scalar for f_s
-if ~( isscalar( f_s ) && isnumeric( f_s ) && isreal( f_s ) )
+if ~( isnumeric( f_s ) && isreal( f_s ) && isscalar( f_s ) )
     errorStruct.message = 'f_s must be a numeric and real-valued scalar!';
     errorStruct.identifier = 'das_pw:NoNumericAndRealScalar';
     error( errorStruct );
@@ -132,7 +134,7 @@ if ~( f_s > 0 && f_s < Inf )
 end
 
 % ensure numeric and real-valued scalar for theta_incident
-if ~( isscalar( theta_incident ) && isnumeric( theta_incident ) && isreal( theta_incident ) )
+if ~( isnumeric( theta_incident ) && isreal( theta_incident ) && isscalar( theta_incident ) )
     errorStruct.message = 'theta_incident must be a numeric and real-valued scalar!';
     errorStruct.identifier = 'das_pw:NoNumericAndRealScalar';
     error( errorStruct );
@@ -146,7 +148,7 @@ if ~( theta_incident > -pi/2 && theta_incident < pi/2 )
 end
 
 % ensure numeric and real-valued scalar for element_width
-if ~( isscalar( element_width ) && isnumeric( element_width ) && isreal( element_width ) )
+if ~( isnumeric( element_width ) && isreal( element_width ) && isscalar( element_width ) )
     errorStruct.message = 'element_width must be a numeric and real-valued scalar!';
     errorStruct.identifier = 'das_pw:NoNumericAndRealScalar';
     error( errorStruct );
@@ -160,7 +162,7 @@ if ~( element_width > 0 && element_width < Inf )
 end
 
 % ensure numeric and real-valued scalar for element_pitch
-if ~( isscalar( element_pitch ) && isnumeric( element_pitch ) && isreal( element_pitch ) )
+if ~( isnumeric( element_pitch ) && isreal( element_pitch ) && isscalar( element_pitch ) )
     errorStruct.message = 'element_pitch must be a numeric and real-valued scalar!';
     errorStruct.identifier = 'das_pw:NoNumericAndRealScalar';
     error( errorStruct );
@@ -174,7 +176,7 @@ if ~( element_pitch > element_width && element_pitch < Inf )
 end
 
 % ensure numeric and real-valued scalar for c_0
-if ~( isscalar( c_0 ) && isnumeric( c_0 ) && isreal( c_0 ) )
+if ~( isnumeric( c_0 ) && isreal( c_0 ) && isscalar( c_0 ) )
     errorStruct.message = 'c_0 must be a numeric and real-valued scalar!';
     errorStruct.identifier = 'das_pw:NoNumericAndRealScalar';
     error( errorStruct );
@@ -193,7 +195,7 @@ if nargin < 9 || isempty( f_bounds )
 end
 
 % ensure numeric and real-valued row vector for f_bounds
-if ~( isrow( f_bounds ) && isnumeric( f_bounds ) && isreal( f_bounds ) )
+if ~( isnumeric( f_bounds ) && isreal( f_bounds ) && isrow( f_bounds ) )
     errorStruct.message = 'f_bounds must be a numeric and real-valued row vector!';
     errorStruct.identifier = 'das_pw:NoNumericAndRealRowVector';
     error( errorStruct );
@@ -212,7 +214,7 @@ if nargin < 10 || isempty( index_t0 )
 end
 
 % ensure numeric and real-valued scalar for index_t0
-if ~( isscalar( index_t0 ) && isnumeric( index_t0 ) && isreal( index_t0 ) )
+if ~( isnumeric( index_t0 ) && isreal( index_t0 ) && isscalar( index_t0 ) )
     errorStruct.message = 'index_t0 must be a numeric and real-valued scalar!';
     errorStruct.identifier = 'das_pw:NoNumericAndRealScalar';
     error( errorStruct );
@@ -437,16 +439,6 @@ for index_pos_x = 1:numel( positions_x )
         % d) apply weights and focus RF signals
         %------------------------------------------------------------------
         data_RF_dft_analy_focused = sum( window_samples .* weights .* data_RF_dft_analy( indicator_valid_act, : ), 2 );
-
-%         figure( index_pos_z + 3 );
-%         temp = zeros( index_f_ub, N_elements );
-%         temp( indices_f, : ) = window_samples .* weights;
-%         window_samples_td = ifft( temp, N_points_dft, 1, 'symmetric' );
-%         imagesc( illustration.dB( window_samples_td, 20 ), [ -60, 0 ] );
-%         temp = zeros( index_f_ub, 1 );
-%         temp( indices_f ) = data_RF_dft_analy_focused;
-%         temp = ifft( temp, N_points_dft, 1, 'symmetric' );
-%         plot( (1:N_samples_t), temp, (1:N_samples_t), abs( hilbert( temp ) ) );
 
         %------------------------------------------------------------------
         % e) inverse DFT of focused signal at time index 0
