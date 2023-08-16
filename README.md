@@ -164,10 +164,16 @@ the spatial resolution.
 git clone https://github.com/mschiffn/f_number
 ```
 
-2. Add the repository to your MATLAB path using .
+2. Add the repository to your MATLAB path.
 
 ```matlab
 addpath( genpath( './f_number' ) )
+```
+
+3. Run the script "examples.m".
+
+```matlab
+examples
 ```
 
 ## Folder Structure
@@ -182,13 +188,16 @@ The repository has the following structure:
     ├── +platforms      # classes for various types of platforms (e.g., CPU, GPU)
     ├── +windows        # classes for various window functions (e.g., boxcar, Hann, Tukey)
     ├── das_pw.m        # main function
+    ├── data_RF.mat     # experimental data (tissue phantom)
+    ├── examples.m      # examples for the usage of the main function
     ├── LICENSE         # license file
     └── README.md       # this readme
 
 The packages +f_numbers, +normalizations, and +windows contain
 exemplary class hierarchies to manage
 various types of
-F-numbers, normalizations, and
+F-numbers,
+normalizations, and
 window functions.
 
 ## Image Formation

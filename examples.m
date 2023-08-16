@@ -22,7 +22,7 @@
 % -------------------------------------------------------------------------
 %   author: Martin F. Schiffner
 %   date: 2023-07-14
-%   modified: 2023-08-02
+%   modified: 2023-08-16
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% clear workspace
@@ -47,7 +47,7 @@ index_t0 = 8;
 steering_angles_rad = deg2rad( steering_angles_deg );
 
 % dependent parameters
-positions_x = (-300:300) * element_pitch / 4;
+positions_x = (-255.5:255.5) * element_pitch / 4;
 positions_z = ( 64 + (0:511) ) * element_pitch / 4;
 
 % dynamic range for all illustrations
@@ -130,7 +130,7 @@ end
 %--------------------------------------------------------------------------
 c_limits = [ -dynamic_range_dB, 0 ];
 
-figure( 2 );
+figure( 3 );
 for index_F = 1:numel( F_numbers_rx )
     subplot( 1, numel( F_numbers_rx ), index_F );
     imagesc( positions_x * 1e3, positions_z * 1e3, 20 * log10( abs( images{ index_F } ) / max( abs( images{ index_F }( : ) ) ) ), c_limits );
@@ -169,7 +169,7 @@ end
 %--------------------------------------------------------------------------
 c_limits = [ -dynamic_range_dB, 0 ];
 
-figure( 3 );
+figure( 4 );
 for index_window = 1:numel( windows_rx )
     subplot( 1, numel( windows_rx ), index_window );
     imagesc( positions_x * 1e3, positions_z * 1e3, 20 * log10( abs( images{ index_window } ) / max( abs( images{ index_window }( : ) ) ) ), c_limits );
@@ -208,7 +208,7 @@ end
 %--------------------------------------------------------------------------
 c_limits = [ -dynamic_range_dB, 0 ];
 
-figure( 4 );
+figure( 5 );
 for index_normalization = 1:numel( normalization_rx )
     subplot( 1, numel( normalization_rx ), index_normalization );
     imagesc( positions_x * 1e3, positions_z * 1e3, 20 * log10( abs( images{ index_normalization } ) / max( abs( images{ index_normalization }( : ) ) ) ), c_limits );
@@ -259,7 +259,7 @@ end
 %--------------------------------------------------------------------------
 c_limits = [ -dynamic_range_dB, 0 ];
 
-figure( 5 );
+figure( 6 );
 for index_bandwidth = 1:numel( fractional_bandwidths )
 
     subplot( 2, numel( fractional_bandwidths ), index_bandwidth );

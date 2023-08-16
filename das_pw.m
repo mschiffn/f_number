@@ -76,7 +76,7 @@ function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, 
 % -------------------------------------------------------------------------
 %   author: Martin F. Schiffner
 %   date: 2021-04-17
-%   modified: 2023-07-31
+%   modified: 2023-08-15
 
 %--------------------------------------------------------------------------
 % 0.) check arguments
@@ -369,36 +369,43 @@ F_number_values = min( F_number_values, F_ub );
 data_RF_dft = fft( data_RF, N_points_dft, 1 );
 data_RF_dft_analy = 2 * data_RF_dft( indices_f, : );
 
-% desired half-widths of the receive subapertures
+% desired half-widths of the receive aperture
 width_aperture_over_two_desired = positions_z ./ ( 2 * F_number_values );
 
 % initialize image w/ zeros
-image = zeros( numel( positions_z ), numel( positions_x ) );
+image = complex( zeros( numel( positions_z ), numel( positions_x ) ) );
 
 % iterate lateral voxel positions
 for index_pos_x = 1:numel( positions_x )
 
-	% print progress in percent
+    % print progress in percent
     fprintf( '%5.1f %%', ( index_pos_x - 1 ) / numel( positions_x ) * 1e2 );
 
     % map desired bounds of the receive aperture to element indices
     indices_aperture_lb = max( ceil( M_elements + ( positions_x( index_pos_x ) - width_aperture_over_two_desired ) / element_pitch ) + 1, 1 );
     indices_aperture_ub = min( floor( M_elements + ( positions_x( index_pos_x ) + width_aperture_over_two_desired ) / element_pitch ) + 1, N_elements );
 
-    % frequency-dependent processing of each z-coordinate
+    % determine frequencies to process for each axial voxel position
     indicator_valid = indices_aperture_lb <= indices_aperture_ub;
 
-    % iterate axial voxel positions
-    for index_pos_z = 1:numel( positions_z )
+    % half-widths of the left receive aperture
+    width_aperture_left_over_two = zeros( numel( indices_f ), numel( positions_z ) );
+    width_aperture_left_over_two( indicator_valid ) = positions_x( index_pos_x ) - positions_lbs_x( indices_aperture_lb( indicator_valid ) );
+
+    % half-widths of the right receive aperture
+    width_aperture_right_over_two = zeros( numel( indices_f ), numel( positions_z ) );
+    width_aperture_right_over_two( indicator_valid ) = positions_ubs_x( indices_aperture_ub( indicator_valid ) ) - positions_x( index_pos_x );
+
+    % determine axial voxel positions that require processing
+    indices_pos_z = find( any( indicator_valid, 1 ) );
+
+    % iterate axial voxel positions that require processing
+    for index_pos_z = indices_pos_z
 
         %------------------------------------------------------------------
         % a) select frequencies to process
         %------------------------------------------------------------------
         indicator_valid_act = indicator_valid( :, index_pos_z );
-
-        % actual width of the receive aperture
-        width_aperture_left_over_two = positions_x( index_pos_x ) - positions_lbs_x( indices_aperture_lb( indicator_valid_act, index_pos_z ) );
-        width_aperture_right_over_two = positions_ubs_x( indices_aperture_ub( indicator_valid_act, index_pos_z ) ) - positions_x( index_pos_x );
 
         %------------------------------------------------------------------
         % b) compute time-of-flight (TOF)
@@ -426,8 +433,8 @@ for index_pos_x = 1:numel( positions_x )
             %--------------------------------------------------------------
             % sample window functions
             indicator_left_act = indicator_left( index_pos_x, : );
-            window_samples_left = compute_samples( window, dist_lateral( index_pos_x, indicator_left_act ) ./ width_aperture_left_over_two );
-            window_samples_right = compute_samples( window, dist_lateral( index_pos_x, ~indicator_left_act ) ./ width_aperture_right_over_two );
+            window_samples_left = compute_samples( window, dist_lateral( index_pos_x, indicator_left_act ) ./ width_aperture_left_over_two( indicator_valid_act, index_pos_z ) );
+            window_samples_right = compute_samples( window, dist_lateral( index_pos_x, ~indicator_left_act ) ./ width_aperture_right_over_two( indicator_valid_act, index_pos_z ) );
             window_samples = [ window_samples_left, window_samples_right ];
 
         end % if isa( window, 'windows.boxcar' )
@@ -445,7 +452,7 @@ for index_pos_x = 1:numel( positions_x )
         %------------------------------------------------------------------
         image( index_pos_z, index_pos_x ) = sum( data_RF_dft_analy_focused, 1 );
 
-    end % for index_pos_z = 1:numel( positions_z )
+    end % for index_pos_z = indices_pos_z
 
 	% erase progress in percent
 	fprintf( '\b\b\b\b\b\b\b' );
