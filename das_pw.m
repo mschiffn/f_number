@@ -1,4 +1,4 @@
-function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, data_RF, f_s, theta_incident, element_width, element_pitch, c_0, f_bounds, index_t0, window, F_number, normalization, platform )
+function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, data_RF, f_s, steering_angle, element_width, element_pitch, c_0, f_bounds, index_t0, window, F_number, normalization, platform )
 % DAS_PW Delay-and-Sum (DAS) Beamforming [ Fourier domain, steered plane wave ]
 %
 % Form ultrasound images by using
@@ -16,10 +16,10 @@ function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, 
 % USAGE:
 % -------------------------------------------------------------------------
 % minimal:
-% image = das_pw( positions_x, positions_z, data_RF, f_s, theta_incident, element_width, element_pitch, c_0 );
+% image = das_pw( positions_x, positions_z, data_RF, f_s, steering_angle, element_width, element_pitch, c_0 );
 %
 % maximal:
-% [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, data_RF, f_s, theta_incident, element_width, element_pitch, c_0, f_bounds, index_t0, window, F_number, normalization, platform );
+% [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, data_RF, f_s, steering_angle, element_width, element_pitch, c_0, f_bounds, index_t0, window, F_number, normalization, platform );
 %
 % -------------------------------------------------------------------------
 % INPUTS:
@@ -29,7 +29,7 @@ function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, 
 %   02.) positions_z:       axial voxel positions (m)
 %   03.) data_RF:           RF data (2d array; 1st dimension: time, 2nd dimension: array element index)
 %   04.) f_s:               sampling rate of the RF data (Hz)
-%   05.) theta_incident:    steering angle of the incident plane wave (rad) [ ← = pi/2, ↓ = 0, → = -pi/2 ]
+%   05.) steering_angle:	steering angle of the incident plane wave (rad) [ ← = pi/2, ↓ = 0, → = -pi/2 ]
 %   06.) element_width:     element width of the uniform linear array (m)
 %   07.) element_pitch:     element pitch of the uniform linear array (m)
 %   08.) c_0:               speed of sound (m/s)
@@ -76,7 +76,7 @@ function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, 
 % -------------------------------------------------------------------------
 %   author: Martin F. Schiffner
 %   date: 2021-04-17
-%   modified: 2023-08-15
+%   modified: 2023-08-24
 
 %--------------------------------------------------------------------------
 % 0.) check arguments
@@ -133,16 +133,16 @@ if ~( f_s > 0 && f_s < Inf )
     error( errorStruct );
 end
 
-% ensure numeric and real-valued scalar for theta_incident
-if ~( isnumeric( theta_incident ) && isreal( theta_incident ) && isscalar( theta_incident ) )
-    errorStruct.message = 'theta_incident must be a numeric and real-valued scalar!';
+% ensure numeric and real-valued scalar for steering_angle
+if ~( isnumeric( steering_angle ) && isreal( steering_angle ) && isscalar( steering_angle ) )
+    errorStruct.message = 'steering_angle must be a numeric and real-valued scalar!';
     errorStruct.identifier = 'das_pw:NoNumericAndRealScalar';
     error( errorStruct );
 end
 
 % ensure steering angle between -90° and 90°
-if ~( theta_incident > -pi/2 && theta_incident < pi/2 )
-    errorStruct.message = 'theta_incident must be larger than negative pi over two and smaller than pi over two!';
+if ~( steering_angle > -pi/2 && steering_angle < pi/2 )
+    errorStruct.message = 'steering_angle must be larger than negative pi over two and smaller than pi over two!';
     errorStruct.identifier = 'das_pw:InvalidSteeringAngle';
     error( errorStruct );
 end
@@ -281,8 +281,8 @@ end
 % check platform
 if isa( platform, 'platforms.gpu' )
     % execute GPU code string( normalization.window )
-    % TODO: fix redefinition of theta_incident
-    image = cuda.gpu_bf_das_pw_rf( positions_x, positions_z, data_RF, f_s, theta_incident + pi/2, element_width, element_pitch, f_bounds( 1 ), f_bounds( 2 ), c_0, index_t0, window, F_number, normalization, platform.index );
+    % TODO: fix redefinition of steering_angle
+    image = cuda.gpu_bf_das_pw_rf( positions_x, positions_z, data_RF, f_s, steering_angle + pi/2, element_width, element_pitch, f_bounds( 1 ), f_bounds( 2 ), c_0, index_t0, window, F_number, normalization, platform.index );
     return
 end
 
@@ -303,12 +303,12 @@ element_width_over_two = element_width / 2;
 
 % centroids and bounds of element faces
 positions_ctr_x = (-M_elements:M_elements) * element_pitch;
-positions_lbs_x = positions_ctr_x.' - element_width_over_two;
-positions_ubs_x = positions_ctr_x.' + element_width_over_two;
+positions_lbs_x = positions_ctr_x - element_width_over_two;
+positions_ubs_x = positions_ctr_x + element_width_over_two;
 
 % propagation direction ( ← = pi/2, ↓ = 0, → = -pi/2 )
-e_theta_x = -sin( theta_incident );
-e_theta_z = cos( theta_incident );
+e_theta_x = -sin( steering_angle );
+e_theta_z = cos( steering_angle );
 
 % reference position
 position_ctr_x_ref = sign( e_theta_x ) * positions_ctr_x( 1 );
@@ -462,7 +462,7 @@ end % for index_pos_x = 1:numel( positions_x )
 % return focused RF signal
 if nargout >= 3
 	signal = zeros( N_points_dft, 1 );
-	signal( indices_f ) = data_RF_dft_analy_focused;
+	signal( indices_f( indicator_valid_act ) ) = data_RF_dft_analy_focused;
     signal = ifft( signal, N_points_dft, 1 );
 end
 
@@ -470,4 +470,4 @@ end
 time_elapsed = toc( time_start );
 fprintf( 'done! (%f s)\n', time_elapsed );
 
-end % function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, data_RF, f_s, theta_incident, element_width, element_pitch, c_0, f_bounds, index_t0, window, F_number, normalization, platform )
+end % function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, data_RF, f_s, steering_angle, element_width, element_pitch, c_0, f_bounds, index_t0, window, F_number, normalization, platform )
