@@ -91,6 +91,13 @@ if ~( isnumeric( positions_x ) && isreal( positions_x ) && isrow( positions_x ) 
     error( errorStruct );
 end
 
+% ensure finite x-coordinates
+if ~all( isfinite( positions_x ) )
+    errorStruct.message = 'positions_x must contain finite x-coordinates!';
+    errorStruct.identifier = 'das_pw:NoFiniteXCoordinates';
+    error( errorStruct );
+end
+
 % ensure numeric and real-valued row vector for positions_z
 if ~( isnumeric( positions_z ) && isreal( positions_z ) && isrow( positions_z ) )
     errorStruct.message = 'positions_z must be a numeric and real-valued row vector!';
@@ -98,10 +105,10 @@ if ~( isnumeric( positions_z ) && isreal( positions_z ) && isrow( positions_z ) 
     error( errorStruct );
 end
 
-% ensure positive z-coordinates
-if ~all( positions_z > 0 )
-    errorStruct.message = 'positions_z must contain positive z-coordinates!';
-    errorStruct.identifier = 'das_pw:NoPositiveZCoordinates';
+% ensure positive and finite z-coordinates
+if ~( all( positions_z > 0 ) && all( isfinite( positions_z ) ) )
+    errorStruct.message = 'positions_z must contain positive and finite z-coordinates!';
+    errorStruct.identifier = 'das_pw:NoPositiveAndFiniteZCoordinates';
     error( errorStruct );
 end
 
@@ -119,6 +126,13 @@ if ~( size( data_RF, 1 ) > 1 && size( data_RF, 2 ) > 1 )
     error( errorStruct );
 end
 
+% ensure finite RF data
+if ~all( isfinite( data_RF ) )
+    errorStruct.message = 'data_RF must contain finite samples!';
+    errorStruct.identifier = 'das_pw:NoFiniteRFData';
+    error( errorStruct );
+end
+
 % ensure numeric and real-valued scalar for f_s
 if ~( isnumeric( f_s ) && isreal( f_s ) && isscalar( f_s ) )
     errorStruct.message = 'f_s must be a numeric and real-valued scalar!';
@@ -127,7 +141,7 @@ if ~( isnumeric( f_s ) && isreal( f_s ) && isscalar( f_s ) )
 end
 
 % ensure positive and finite f_s
-if ~( f_s > 0 && f_s < Inf )
+if ~( f_s > 0 && isfinite( f_s ) )
     errorStruct.message = 'f_s must be positive and finite!';
     errorStruct.identifier = 'das_pw:InvalidSamplingRate';
     error( errorStruct );
@@ -155,7 +169,7 @@ if ~( isnumeric( element_width ) && isreal( element_width ) && isscalar( element
 end
 
 % ensure positive and finite element_width
-if ~( element_width > 0 && element_width < Inf )
+if ~( element_width > 0 && isfinite( element_width ) )
     errorStruct.message = 'element_width must be positive and finite!';
     errorStruct.identifier = 'das_pw:InvalidElementWidth';
     error( errorStruct );
@@ -169,7 +183,7 @@ if ~( isnumeric( element_pitch ) && isreal( element_pitch ) && isscalar( element
 end
 
 % ensure larger element_pitch than element_width and finite element_pitch
-if ~( element_pitch > element_width && element_pitch < Inf )
+if ~( element_pitch > element_width && isfinite( element_pitch ) )
     errorStruct.message = 'element_pitch must be larger than element_width and finite!';
     errorStruct.identifier = 'das_pw:InvalidElementPitch';
     error( errorStruct );
@@ -183,7 +197,7 @@ if ~( isnumeric( c_0 ) && isreal( c_0 ) && isscalar( c_0 ) )
 end
 
 % ensure positive and finite c_0
-if ~( c_0 > 0 && c_0 < Inf )
+if ~( c_0 > 0 && isfinite( c_0 ) )
     errorStruct.message = 'c_0 must be positive and finite!';
     errorStruct.identifier = 'das_pw:InvalidSpeedOfSound';
     error( errorStruct );
