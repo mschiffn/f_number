@@ -54,12 +54,12 @@ function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, 
 % -------------------------------------------------------------------------
 %   [1] M. F. Schiffner and G. Schmitz,
 %       "Frequency-dependent F-number suppresses grating lobes and improves the lateral resolution in coherent plane-wave compounding,"
-%       IEEE Trans. Ultrason., Ferroelectr., Freq. Control (2023).
+%       IEEE Trans. Ultrason., Ferroelectr., Freq. Control, vol. 70, no. 9, pp. 1101-1117, Sep. 2023.
 %       DOI: <a href="matlab:web('https://doi.org/10.1109/TUFFC.2023.3291612')">10.1109/TUFFC.2023.3291612</a>
 %
 %   [2] M. F. Schiffner and G. Schmitz,
 %       "Frequency-dependent F-number increases the contrast and the spatial resolution in fast pulse-echo ultrasound imaging,"
-%       2021 IEEE Int. Ultrasonics Symp. (IUS), Xi’an, China, Sep. 2021, pp. 1–4.
+%       2021 IEEE Int. Ultrasonics Symp. (IUS), Xi'an, China, Sep. 2021, pp. 1-4.
 %       DOI: <a href="matlab:web('https://doi.org/10.1109/IUS52206.2021.9593488')">10.1109/IUS52206.2021.9593488</a>
 %       arxiv: <a href="matlab:web('https://arxiv.org/abs/2111.04593')">2111.04593</a>
 %       YouTube: <a href="matlab:web('https://www.youtube.com/watch?v=T6BoYRvQ6rg')">T6BoYRvQ6rg</a>
@@ -76,7 +76,7 @@ function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, 
 % -------------------------------------------------------------------------
 %   author: Martin F. Schiffner
 %   date: 2021-04-17
-%   modified: 2023-08-24
+%   modified: 2023-11-15
 
 %--------------------------------------------------------------------------
 % 0.) check arguments
@@ -468,8 +468,8 @@ for index_pos_x = 1:numel( positions_x )
 
     end % for index_pos_z = indices_pos_z
 
-	% erase progress in percent
-	fprintf( '\b\b\b\b\b\b\b' );
+    % erase progress in percent
+    fprintf( '\b\b\b\b\b\b\b' );
 
 end % for index_pos_x = 1:numel( positions_x )
 
