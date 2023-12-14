@@ -1,17 +1,18 @@
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-//
+// DAS kernel, steered PW, frequency-dependent F-number
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // author: Martin F. Schiffner
 // date: 2022-02-20
-// modified: 2022-02-20
+// modified: 2023-12-14
 
 __global__ void das_F_number_frequency_dependent( t_float_complex_gpu* image,
-													const t_float_complex_gpu* data_RF_dft, const t_float_gpu* pos_lat_x, const t_float_gpu* pos_lat_z,
+													const t_float_complex_gpu* data_RF_dft,
+													const t_float_gpu* positions_x, const t_float_gpu* positions_z,
 													const t_float_gpu* pos_rx_ctr_x, const t_float_gpu* pos_rx_lb_x, const t_float_gpu* pos_rx_ub_x,
 													const t_float_gpu* f_number_values, t_window_ptr window_rx,
-													t_float_gpu argument_factor_flt, int N_blocks_Omega_bp, int index_f_lb, int index_f_ub,
-													int N_pos_lat_x, int N_pos_lat_z, t_float_gpu cos_theta_incident, t_float_gpu sin_theta_incident, t_float_gpu pos_tx_ctr_x_ref,
-													t_float_gpu N_samples_shift_add, t_float_gpu f_s_over_c_0, int index_rx,
+													const t_float_gpu argument_factor, int N_blocks_Omega_bp, int index_f_lb, int index_f_ub,
+													int N_pos_lat_x, int N_pos_lat_z, t_float_gpu e_steering_x, t_float_gpu e_steering_z, t_float_gpu pos_tx_ctr_x_ref,
+													t_float_gpu argument_add, const int index_rx,
 													t_float_gpu element_pitch, t_float_gpu M_elements, int N_elements )
 {
 
@@ -34,13 +35,10 @@ __global__ void das_F_number_frequency_dependent( t_float_complex_gpu* image,
 	// compute argument of twiddle factor
 	float pos_focus_x = 0.0f;
 	float distance_x = 0.0f; float distance_z = 0.0f;
-	float distance_sw = 0.0f;
 	float argument = 0.0f;
 
-	float width_aperture_desired_over_two = 0.0f;
 	float width_aperture_left_over_two = 0.0f; float width_aperture_right_over_two = 0.0f;
 	float width_aperture_over_two_max = element_pitch * N_elements;
-	float N_samples_shift = 0.0f;
 	float apodization = 1.0f; float apodization_act = 1.0f;	float apodization_sum = 0.0f;
 
 	float distance_x_act = 0.0f;
@@ -52,29 +50,30 @@ __global__ void das_F_number_frequency_dependent( t_float_complex_gpu* image,
 	__shared__ float f_number_values_shared[ N_THREADS_PER_BLOCK ];
 	__shared__ cufftComplex data_RF_dft_times_two_shared[ N_THREADS_PER_BLOCK ];
 
-	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	// compute round-trip time-of-flight and argument of complex exponential function
-	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	// 1.) compute argument of complex exponential function
+	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	if( l_x < N_pos_lat_x && l_z < N_pos_lat_z )
 	{
 
-		// compute round-trip time-of-flight
-		pos_focus_x = pos_lat_x[ l_x ];
+		//--------------------------------------------------------------------------------------------------------------------------------------
+		// 1.) compute argument
+		//--------------------------------------------------------------------------------------------------------------------------------------
+		// a) compute round-trip distance
+		pos_focus_x = positions_x[ l_x ];
 		distance_x = pos_focus_x - pos_rx_ctr_x[ index_rx ];
-		distance_z = pos_lat_z[ l_z ];
-		distance_sw = __fsqrt_rn( distance_x * distance_x + distance_z * distance_z );
-		distance_sw = distance_sw + cos_theta_incident * ( pos_focus_x - pos_tx_ctr_x_ref ) + sin_theta_incident * distance_z;
+		distance_z = positions_z[ l_z ];
+		float distance_sw = e_steering_x * ( pos_focus_x - pos_tx_ctr_x_ref ) + e_steering_z * distance_z;
+		distance_sw = distance_sw + __fsqrt_rn( distance_x * distance_x + distance_z * distance_z );
 
-		// argument for complex exponential in inverse DFT
-		//N_samples_shift = roundf( f_s_over_c_0 * distance_sw  ) + N_samples_shift_add;
-		N_samples_shift = f_s_over_c_0 * distance_sw + N_samples_shift_add;
-		argument = argument_factor_flt * N_samples_shift;
+		// b) argument for complex exponential in inverse DFT
+		argument = argument_factor * distance_sw + argument_add;
 
 	} // if( l_x < N_pos_lat_x && l_z < N_pos_lat_z )
 
-	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	// loop over all frequency blocks that are required to compute sub-matrix of final image
-	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	// 2.) iterate all frequency blocks that are required to compute sub-matrix of final image
+	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	for( int index_block_f = 0; index_block_f < N_blocks_Omega_bp; index_block_f++ )
 	{
 
@@ -123,28 +122,26 @@ __global__ void das_F_number_frequency_dependent( t_float_complex_gpu* image,
 			// check voxel validity
 			if( l_x < N_pos_lat_x && l_z < N_pos_lat_z )
 			{
-
 				// compute apodization weight for current frequency using F-number
+				// boundaries of the receive aperture
+				// a) default bounds (F-number of zero)
+				index_aperture_lb = 0;
+				index_aperture_ub = N_elements - 1;
+
+				// b) bounds for positive F-number
 				if( f_number_values_shared[ index_f_in_block ] > FLT_EPSILON )
 				{
 					// desired half-width of the receive aperture
-					width_aperture_desired_over_two = distance_z / ( 2 * f_number_values_shared[ index_f_in_block ] );
-				}
-				else // f_number_values_shared[ index_f_in_block ] <= FLT_EPSILON
-				{
-					// full aperture
-					width_aperture_desired_over_two = width_aperture_over_two_max;
+					float width_aperture_over_two_desired = distance_z / ( 2 * f_number_values_shared[ index_f_in_block ] );
+					index_aperture_lb = ( int ) fmaxf( ceilf( M_elements + ( pos_focus_x - width_aperture_over_two_desired ) / element_pitch ), 0 );
+					index_aperture_ub = ( int ) fminf( floorf( M_elements + ( pos_focus_x + width_aperture_over_two_desired ) / element_pitch ), N_elements - 1 );
 				}
 
-				// boundaries of the actual receive aperture
-				index_aperture_lb = ( int ) fmaxf( ceilf( M_elements + ( pos_focus_x - width_aperture_desired_over_two ) / element_pitch ), 0 );
-				index_aperture_ub = ( int ) fminf( floorf( M_elements + ( pos_focus_x + width_aperture_desired_over_two ) / element_pitch ), N_elements - 1 );
-
-				// next frequency if rx element is outside the actual receive aperture
+				// next frequency if rx element is outside the receive aperture
 				if( ( index_rx < index_aperture_lb ) || ( index_rx > index_aperture_ub ) ) continue;
 				// assertion: index_rx >= index_aperture_lb && index_rx <= index_aperture_ub
 
-				// actual half-widths of the receive aperture
+				// half-widths of the receive aperture
 				width_aperture_left_over_two = pos_focus_x - pos_rx_lb_x[ index_aperture_lb ];
 				width_aperture_right_over_two = pos_rx_ub_x[ index_aperture_ub ] - pos_focus_x;
 
@@ -161,12 +158,12 @@ __global__ void das_F_number_frequency_dependent( t_float_complex_gpu* image,
 					// check location of array element
 					if( distance_x_act < 0 )
 					{
-						// array element belongs to left aperture
+						// array element belongs to left aperture [ pos_rx_ctr_x[ index_element ] < pos_focus_x ]
 						apodization_act = apply( window_rx, distance_x_act, width_aperture_left_over_two );
 					}
 					else
 					{
-						// array element belongs to right aperture
+						// array element belongs to right aperture [ pos_rx_ctr_x[ index_element ] >= pos_focus_x ]
 						apodization_act = apply( window_rx, distance_x_act, width_aperture_right_over_two );
 					}
 					apodization_sum = apodization_sum + apodization_act;

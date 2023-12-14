@@ -1,17 +1,17 @@
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-//
+// DAS kernel, steered PW, frequency-dependent F-number
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // author: Martin F. Schiffner
 // date: 2022-02-20
-// modified: 2022-02-20
+// modified: 2023-12-13
 
 __global__ void das_F_number_frequency_dependent_window( t_float_complex_gpu* image,
-													const t_float_complex_gpu* data_RF_dft, const t_float_gpu* pos_lat_x, const t_float_gpu* pos_lat_z,
+													const t_float_complex_gpu* data_RF_dft, const t_float_gpu* positions_x, const t_float_gpu* positions_z,
 													const t_float_gpu* pos_rx_ctr_x, const t_float_gpu* pos_rx_lb_x, const t_float_gpu* pos_rx_ub_x,
 													const t_float_gpu* f_number_values, t_window_ptr window_rx, t_window_ptr window_f,
-													t_float_gpu argument_factor_flt, int N_blocks_Omega_bp, int index_f_lb, int N_samples_dft_bp,
-													int N_pos_lat_x, int N_pos_lat_z, t_float_gpu cos_theta_incident, t_float_gpu sin_theta_incident, t_float_gpu pos_tx_ctr_x_ref,
-													t_float_gpu N_samples_shift_add, t_float_gpu f_s_over_c_0, int index_rx,
+													t_float_gpu argument_factor, int N_blocks_Omega_bp, int index_f_lb, int N_samples_dft_bp,
+													int N_pos_lat_x, int N_pos_lat_z, t_float_gpu e_steering_x, t_float_gpu e_steering_z, t_float_gpu pos_tx_ctr_x_ref,
+													t_float_gpu argument_add, int index_rx,
 													t_float_gpu element_pitch, t_float_gpu M_elements, int N_elements )
 {
 
@@ -33,13 +33,11 @@ __global__ void das_F_number_frequency_dependent_window( t_float_complex_gpu* im
 	// compute argument of twiddle factor
 	float pos_focus_x = 0.0f;
 	float distance_x = 0.0f; float distance_z = 0.0f;
-	float distance_sw = 0.0f;
 	float argument = 0.0f;
 
 	float width_aperture_desired_over_two = 0.0f;
 	float width_aperture_left_over_two = 0.0f; float width_aperture_right_over_two = 0.0f;
 	float width_aperture_over_two_max = element_pitch * N_elements;
-	float N_samples_shift = 0.0f;
 	float apodization = 1.0f; float apodization_act = 1.0f;	float apodization_sum = 0.0f;
 
 	float distance_x_act = 0.0f;
@@ -60,16 +58,14 @@ __global__ void das_F_number_frequency_dependent_window( t_float_complex_gpu* im
 	{
 
 		// compute round-trip time-of-flight
-		pos_focus_x = pos_lat_x[ l_x ];
+		pos_focus_x = positions_x[ l_x ];
 		distance_x = pos_focus_x - pos_rx_ctr_x[ index_rx ];
-		distance_z = pos_lat_z[ l_z ];
-		distance_sw = __fsqrt_rn( distance_x * distance_x + distance_z * distance_z );
-		distance_sw = distance_sw + cos_theta_incident * ( pos_focus_x - pos_tx_ctr_x_ref ) + sin_theta_incident * distance_z;
+		distance_z = positions_z[ l_z ];
+		float distance_sw = e_steering_x * ( pos_focus_x - pos_tx_ctr_x_ref ) + e_steering_z * distance_z;
+		distance_sw = distance_sw + __fsqrt_rn( distance_x * distance_x + distance_z * distance_z );
 
 		// argument for complex exponential in inverse DFT
-		//N_samples_shift = roundf( f_s_over_c_0 * distance_sw  ) + N_samples_shift_add;
-		N_samples_shift = f_s_over_c_0 * distance_sw + N_samples_shift_add;
-		argument = argument_factor_flt * N_samples_shift;
+		argument = argument_factor * distance_sw + argument_add;
 
 	} // if( l_x < N_pos_lat_x && l_z < N_pos_lat_z )
 
@@ -86,7 +82,7 @@ __global__ void das_F_number_frequency_dependent_window( t_float_complex_gpu* im
 		// check validity of frequency
 		if( index_f_in_band < N_samples_dft_bp )
 		{
-			// transfer complex DFT value from device memory to shared memory
+			// transfer F-number value from device memory to shared memory
 			f_number_values_shared[ index_thread ] = f_number_values[ index_f_in_band ];
 		}
 		else
@@ -108,6 +104,9 @@ __global__ void das_F_number_frequency_dependent_window( t_float_complex_gpu* im
 			if( l_x < N_pos_lat_x && l_z < N_pos_lat_z )
 			{
 
+		// 		// check position of selected array element
+		// if( distance_x < 0 )
+		// {
 				// compute apodization weight for current frequency using F-number
 				if( f_number_values_shared[ index_f_in_block ] > FLT_EPSILON )
 				{

@@ -1,38 +1,69 @@
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  % gpu_bf_das_pw_rf.cu
  %
- % delay-and-sum (DAS) beamforming in the temporal Fourier domain using
- % the RF signals obtained from the excitation by
- % a steered plane wave
- % 
- % The calling syntax is:
+ % Form ultrasound images by using
+ % the delay-and-sum (DAS) algorithm in
+ % the Fourier domain.
  %
- % image_DAS
- % = gpu_bf_das_pw_rf
- % (
- % 00.) pos_lat_x,				lateral positions of the image voxels (m)
- % 01.) pos_lat_z,				axial positions of the image voxels (m)
- % 02.) data_RF,				real-valued RF signals (2d array; 1st dimension: time, 2nd dimension: array element index)
- % 03.) f_s,					sampling rate of RF signals (Hz)
- % 04.) theta_incident,			steering angle of the incident plane wave (rad)
- % 05.) element_width,			element width of the linear array (m)
- % 06.) element_pitch,			element pitch of the linear array (m)
- % 07.) f_lb,					lower frequency bound in the RF signals (Hz)
- % 08.) f_ub,					upper frequency bound in the RF signals (Hz)
- % 09.) c_0,					average small-signal sound speed (m/s)
- % 10.) N_samples_shift_add,	number of additional samples to shift (1)
- % 11.) window,					window function for the receive apodization weights ( object of class windows.window )
- % 12.) F_number,				receive F-number ( object of class f_numbers.f_number )
- % 13.) normalization,			normalization of the receive apodization weights ( object of class normalizations.normalization )
- % 14.) index_gpu				index of the GPU to be used (1)
- % )
+ % The Fourier domain permits
+ %  1.) independent receive focusing of different frequencies,
+ %  2.) exact corrections of the arrival times independent of the sampling rate, and
+ %  3.) usage of frequency-dependent apodization weights.
  %
+ % A uniform linear transducer array is assumed.
+ %
+ % -------------------------------------------------------------------------
+ % USAGE:
+ % -------------------------------------------------------------------------
+ % minimal:
+ % image = gpu_bf_das_pw_rf( positions_x, positions_z, data_RF, f_s, steering_angle, element_width, element_pitch, c_0 );
+ %
+ % maximal:
+ % [ image, F_number_values ] = gpu_bf_das_pw_rf( positions_x, positions_z, data_RF, f_s, steering_angle, element_width, element_pitch, c_0, f_bounds, index_t0, window, F_number, normalization, index_gpu );
+ %
+ % -------------------------------------------------------------------------
+ % INPUTS:
+ % -------------------------------------------------------------------------
+ % REQUIRED
+ %  00.) positions_x:           lateral voxel positions (m)
+ %  01.) positions_z:           axial voxel positions (m)
+ %  02.) data_RF:               RF data (2d array; 1st dimension: time, 2nd dimension: array element index)
+ %  03.) f_s:                   sampling rate of the RF data (Hz)
+ %  04.) steering_angle:        steering angle of the incident plane wave (rad) [ ← = pi/2, ↓ = 0, → = -pi/2 ]
+ %  05.) element_width:         element width of the uniform linear array (m)
+ %  06.) element_pitch:         element pitch of the uniform linear array (m)
+ %  07.) c_0:                   speed of sound (m/s)
+ %
+ % OPTIONAL
+ %  08.) f_bounds:              frequency bounds (Hz) (1d array; 1st element: lower frequency bound, 2nd element: upper frequency bound)
+ %  09.) index_t0:              time index of the sample extracted from the focused RF signal (1)
+ %  10.) window:                window function for receive apodization ( object of class windows.window )
+ %  11.) F_number:              receive F-number (  object of class f_numbers.f_number )
+ %  12.) normalization:         normalization of the complex-valued apodization weights ( object of class normalizations.normalization )
+ %  13.) index_gpu:             index of the GPU to be used (1)
+ %  14.) verbosity:             verbosity level of output
+ %
+ % -------------------------------------------------------------------------
+ % OUTPUTS:
+ % -------------------------------------------------------------------------
+ %  00.) image:                 complex-valued DAS image
+ %  01.) weights:               value of the F-number for each frequency
+ %
+ % -------------------------------------------------------------------------
+ % ABOUT:
+ % -------------------------------------------------------------------------
  % author: Martin Schiffner
  % date: 2010-12-17
- % modified: 2022-03-03
+ % modified: 2023-12-14
  % All rights reserved!
  %
  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
+
+// TODO: compute order of DFT!
+// __device__ t_float_gpu distance_pw( t_float_gpu pos_focus_x, t_float_gpu pos_focus_z, t_float_gpu pos_rx_ctr_x, t_float_gpu e_steering_x, t_float_gpu e_steering_z )
+// {
+
+// }
 
 #include <cuda.h>
 #include <cufft.h>
@@ -54,8 +85,8 @@
 #define N_THREADS_Y 8
 #define N_THREADS_PER_BLOCK 64
 
-#define REVISION "1.1"
-#define DATE "2022-02-18"
+#define REVISION "1.2"
+#define DATE "2023-12-14"
 #define BYTES_PER_MEBIBYTE 1048576
 #define BYTES_PER_KIBIBYTE 1024
 
@@ -187,367 +218,272 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 {
 
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	// 1.) define variables on host
+	// 0.) check number of devices supporting CUDA
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	// 0.) pointer to one-dimensional arrays with rx focus locations on x-axis
-	double* pos_lat_x_dbl = NULL;		// double precision
-	float* pos_lat_x = NULL;			// single precision
+	// a) check number of devices supporting CUDA
+	int N_devices = 0;
+	checkCudaRTErrors( cudaGetDeviceCount( &N_devices ) );
 
-	// 1.) pointer to one-dimensional arrays with rx focus locations on z-axis
-	double* pos_lat_z_dbl = NULL;		// double precision
-	float* pos_lat_z = NULL;			// single precision
-
-	// 2.) pointer to two-dimensional array of real-valued RF signals
-	double *data_RF_dbl = NULL;			// double precision
-	float *data_RF = NULL;				// single precision
-
-	// 3.) temporal sampling frequency
-	double f_s_dbl = 0.0;				// double precision
-
-	// 4.) angle of incident plane wave
-	double theta_incident_dbl = 0.0;	// double precision
-
-	// x component of unit wave vector
-	double cos_theta_incident_dbl = 0.0;	// double precision
-	float cos_theta_incident_flt = 0.0f;	// single precision
-
-	// z component of unit wave vector
-	double sin_theta_incident_dbl = 0.0;	// double precision
-	float sin_theta_incident_flt = 0.0f;	// single precision
-
-	// 5.) width of array elements
-	double element_width_dbl = 0.0;		// double precision
-
-	// 6.) width of array elements
-	double element_pitch_dbl = 0.0;		// double precision
-
-	// 7.) lower bound on the temporal frequency
-	double f_lb_dbl = 0.0;				// double precision
-	int index_f_lb = 0;
-
-	// 8.) upper bound on the temporal frequency
-	double f_ub_dbl = 0.0;				// double precision
-	int index_f_ub = 0;
-
-	// 9.) average small-signal sound speed
-	double c_0_dbl = 0.0;				// double precision
-
-	// 10.) number of samples added to computed time delay
-	double N_samples_shift_add_dbl = 0.0;	// double precision (default value: 0)
-	float N_samples_shift_add_flt = 0.0f;	// single precision
-
-	// 11.) window function for the receive apodization
-	t_window_ptr h_windows[ N_WINDOWS ];	// host-side function pointers to __device__ window functions
-	int index_window_rx = 0;				// index of apodization function (default value: 0)
-	char window_rx_name[ 128 ];				// name of window function
-
-	// 12.) frequency-dependent F-number
-	double* f_number_values_dbl = NULL;		// double precision
-	float* f_number_values_flt = NULL;		// single precision
-	char f_number_name[ 128 ];				// name of F-number
-
-	// 13.) index of the frequency window function
-	int index_window_f = 0;				// default value
-
-	// 14.) index of GPU to be used
-	int index_gpu = 0;					// default value
-
-	// pointers to one-dimensional array with rx locations on x-axis
-	float* pos_rx_ctr_x = NULL;			// single precision
-	float* pos_rx_lb_x = NULL;			// single precision
-	float* pos_rx_ub_x = NULL;			// single precision
-
-	// x position of reference element (tx at t = 0)
-	double pos_tx_x_ref_dbl = 0.0;		// double precision
-	float pos_tx_ctr_x_ref_flt = 0.0f;		// single precision
-
-	// frequency axis
-	double* element_pitch_norm_dbl = NULL;
-
-	// resulting DAS image
-	cufftComplex* image_DAS_flt_cpx;	// complex data, single precision
-	float* image_DAS_real;              // real data, single precision
-	float* image_DAS_imag;              // imaginary data, single precision
-
-	// sum of apodization weights for each grid point
-	float* h_weights = NULL;			// sum of apodization weights for each grid point (host)
-
-	// quotients
-	float f_s_over_c_0_flt;				// single precision
+	// b) early exit if no CUDA-enabled GPU was detected
+	if( N_devices < 1 ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:NoCUDADevices", "Could not find any CUDA-enabled devices!" );
 
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	// 1.) define variables on device
-	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	cufftComplex* d_image_flt_cpx;		// pointer to DAS image on GPU, complex data, single precision
-	float* data_RF_flt_gpu;				// pointer to RF data on GPU, single precision
-	float* d_pos_lat_x_flt;				// pointer to one-dimensional arrays with rx focus locations on x-axis
-	float* d_pos_lat_z_flt;				// pointer to one-dimensional arrays with rx focus locations on z-axis
-
-	t_float_gpu* d_pos_rx_ctr_x = NULL;		// array elements
-	t_float_gpu* d_pos_rx_lb_x = NULL;
-	t_float_gpu* d_pos_rx_ub_x = NULL;
-
-	t_float_gpu* d_weights = NULL;		// pointer to weights for image pixels on GPU
-
-	t_float_gpu* d_f_number_values = NULL;		//
-
-    // timing variables for performance statistics
-    cudaEvent_t start, stop;
-    float time_transfer_to_device = -1.0f;  // elapsed time for memory transfer host to device (ms)
-    float time_dft = -1.0f;                 // elapsed time for fft algorithm (ms)
-    float time_kernel = -1.0f;              // elapsed time for kernel execution (ms)
-    float time_transfer_to_host = -1.0f;    // elapsed time for memory transfer device to host (ms)
-    float time_total = 0.0f;                // elapsed time total (ms)
-    
-    double argument_factor_dbl;
-    float argument_factor_flt;
-
-	const mwSize *RF_data_dim;  // dimensions of two-dimensional RF data array
-	int N_el_rx = 0;			// number of receive elements
-	double M_el_rx = 0;			// half-number of receive elements
-
-	int N_pos_lat_x = 0;        // number of positions on x-axis
-	int N_pos_lat_z = 0;        // number of positions on z-axis
-
-	int N_samples_t = 0;        // number of samples per RF line
-
-	int N_order_dft = 0;        // order of DFT
-
-	int N_samples_dft = 0;      // computed number of non-redundant samples of DFT of order N_order_dft
-
-	int N_samples_dft_bp = 0;   // computed number of non-redundant samples of DFT of order N_order_dft after bandpass filter
-
-	int N_blocks_Omega_bp = 0;	// number of frequency blocks
-
-	size_t size_bytes_DAS_image_RF_complex, size_bytes_RF_data, size_bytes_positions_x, size_bytes_positions_z, size_bytes_positions_rx, size_bytes_f_numbers, size_bytes_weights, size_bytes_signal, mem_available, size_bytes_total;
-
-	int cufft_batch_size = 10;  // batch size for 1-D R2C transform in cuFFT library
-
-	int l_x = 0;                // loop variables
-	int l_z = 0;               
-	int k_rx = 0;
-
-	int N_blocks_x = 0;
-	int N_blocks_z = 0;
-	int F_number_constant = 0;	// indicates whether F-number is fixed
-
-	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	// 2.) check and assign input arguments
+	// 1.) check and assign inputs
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	// check for correct number of input arguments
-	if( nrhs < 10 ) mexErrMsgIdAndTxt("gpu_bf_das_pw_rf:nrhs", "At least 10 inputs are required.");
+	if( nrhs < 8 ) mexErrMsgIdAndTxt("gpu_bf_das_pw_rf:nrhs", "At least 8 inputs are required.");
 	if( nrhs > 15 ) mexErrMsgIdAndTxt("gpu_bf_das_pw_rf:nrhs", "At most 15 inputs are allowed.");
 
+	// check for correct number of output arguments
+	if( nlhs > 1 ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:nlhs", "Only one output is allowed.");
+
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// 0.) lateral positions
+	// 0.) lateral voxel positions (m)
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// a) check mxArray in workspace
-	if( !( mxIsDouble( prhs[ 0 ] ) && ( mxGetNumberOfDimensions( prhs[ 0 ] ) == 2 ) ) )
+	// a) ensure real-valued mxDOUBLE_CLASS with two dimensions
+	if( !( mxIsDouble( prhs[ 0 ] ) && !mxIsComplex( prhs[ 0 ] ) && ( mxGetNumberOfDimensions( prhs[ 0 ] ) == 2 ) ) )
 	{
-		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidLateralPositions", "Lateral positions must be two-dimensional and double!" );
+		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidLateralPositions", "Lateral positions must be a real-valued matrix of type double!" );
 	}
 
 	// b) lateral positions
-	pos_lat_x_dbl = ( double * ) mxGetData( prhs[ 0 ] );
-	N_pos_lat_x = mxGetN( prhs[ 0 ] );
+	const double* const positions_x_dbl = ( double * ) mxGetData( prhs[ 0 ] );
+
+	// c) number of positions on x-axis
+	const int N_pos_lat_x = mxGetN( prhs[ 0 ] );
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// 1.) axial positions
+	// 1.) axial voxel positions (m)
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// a) check mxArray in workspace
-	if( !( mxIsDouble( prhs[ 1 ] ) && ( mxGetNumberOfDimensions( prhs[ 1 ] ) == 2 ) ) )
+	// a) ensure real-valued mxDOUBLE_CLASS with two dimensions
+	if( !( mxIsDouble( prhs[ 1 ] ) && !mxIsComplex( prhs[ 1 ] ) && ( mxGetNumberOfDimensions( prhs[ 1 ] ) == 2 ) ) )
 	{
-		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidAxialPositions", "Axial positions must be two-dimensional and double!" );
+		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidAxialPositions", "Axial positions must be a real-valued matrix of type double!" );
 	}
 
 	// b) axial positions
-	pos_lat_z_dbl = ( double * ) mxGetData( prhs[ 1 ] );
-	N_pos_lat_z = mxGetN( prhs[ 1 ] );
+	const double* const positions_z_dbl = ( double * ) mxGetData( prhs[ 1 ] );
+
+	// c) number of positions on z-axis
+	const int N_pos_lat_z = mxGetN( prhs[ 1 ] );
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// 2.) RF data
+	// 2.) RF data (2d array; 1st dimension: time, 2nd dimension: array element index)
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// a) check mxArray in workspace
-	if( !( mxIsDouble( prhs[ 2 ] ) && ( mxGetNumberOfDimensions( prhs[ 2 ] ) == 2 ) ) )
+	// a) ensure real-valued mxDOUBLE_CLASS with two dimensions
+	if( !( mxIsDouble( prhs[ 2 ] ) && !mxIsComplex( prhs[ 2 ] ) && ( mxGetNumberOfDimensions( prhs[ 2 ] ) == 2 ) ) )
 	{
-		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidRFData", "RF data must be double matrix!" );
+		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidRFData", "RF data must be a real-valued matrix of type double!" );
 	}
 
 	// b) create pointer to real data in RF data
-	data_RF_dbl = ( double * ) mxGetData( prhs[ 2 ] );
+	const double* const data_RF_dbl = ( double * ) mxGetData( prhs[ 2 ] );
 
-	// c) read dimensions of RF data
-	RF_data_dim = mxGetDimensions( prhs[ 2 ] );
+	// c) read dimensions of two-dimensional RF data array
+	const mwSize* const RF_data_dim = mxGetDimensions( prhs[ 2 ] );
 
-	N_samples_t = RF_data_dim[ 0 ];		// number of samples in the time domain
-	N_el_rx     = RF_data_dim[ 1 ];		// number of array elements
-	M_el_rx = ( N_el_rx - 1.0 ) / 2.0;	// half-number of receive elements
+	const int N_samples_t = RF_data_dim[ 0 ];  // number of samples per RF line in the time domain
+	const int N_el_rx = RF_data_dim[ 1 ];      // number of array elements
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// 3.) sampling rate
+	// 3.) sampling rate of the RF data (Hz)
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// a) check mxArray in workspace
-	if( !( mxIsDouble( prhs[ 3 ] ) && mxIsScalar( prhs[ 3 ] ) ) )
+	// a) ensure real-valued mxDOUBLE_CLASS with one element
+	if( !( mxIsDouble( prhs[ 3 ] ) && !mxIsComplex( prhs[ 3 ] ) && mxIsScalar( prhs[ 3 ] ) ) )
 	{
-		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidSamplingRate", "Sampling rate must be double and scalar!" );
+		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidSamplingRate", "Sampling rate must be a real-valued scalar of type double!" );
 	}
 
 	// b) sampling rate
-	f_s_dbl = *( ( double * ) mxGetData( prhs[ 3 ] ) );
+	const double f_s_dbl = *( ( double * ) mxGetData( prhs[ 3 ] ) );
 
 	// c) ensure positive sampling rate
 	if( f_s_dbl <= 0 ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidSamplingRate", "Sampling rate must be positive!" );
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// 4.) steering angle of incident plane wave
+	// 4.) steering angle of the incident plane wave (rad) [ ← = pi/2, ↓ = 0, → = -pi/2 ]
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// a) check mxArray in workspace
-	if( !( mxIsDouble( prhs[ 4 ] ) && mxIsScalar( prhs[ 4 ] ) ) )
+	// a) ensure real-valued mxDOUBLE_CLASS with one element
+	if( !( mxIsDouble( prhs[ 4 ] ) && !mxIsComplex( prhs[ 4 ] ) && mxIsScalar( prhs[ 4 ] ) ) )
 	{
-		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidSteeringAngle", "Steering angle must be double and scalar!" );
+		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidSteeringAngle", "Steering angle must be a real-valued scalar of type double!" );
 	}
 
 	// b) steering angle of incident plane wave
-	theta_incident_dbl = *( ( double * ) mxGetData( prhs[ 4 ] ) );
+	const double steering_angle_dbl = *( ( double * ) mxGetData( prhs[ 4 ] ) );
 
-	// c) ensure valid steering angle
-	if( ( theta_incident_dbl <= 0 ) || ( theta_incident_dbl >= M_PI ) ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidSteeringAngle", "Steering angle must be positive and smaller than pi!" );
+	// c) ensure valid steering angle between -90° and 90°
+	if( ( steering_angle_dbl <= - M_PI / 2 ) || ( steering_angle_dbl >= M_PI / 2 ) ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidSteeringAngle", "Steering angle must be larger than negative pi over two and smaller than pi over two!" );
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// 5.) element width
+	// 5.) element width of the uniform linear array (m)
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// a) check mxArray in workspace
-	if( !( mxIsDouble( prhs[ 5 ] ) && mxIsScalar( prhs[ 5 ] ) ) )
+	// a) ensure real-valued mxDOUBLE_CLASS with one element
+	if( !( mxIsDouble( prhs[ 5 ] ) && !mxIsComplex( prhs[ 5 ] ) && mxIsScalar( prhs[ 5 ] ) ) )
 	{
-		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidElementWidth", "Element width must be double and scalar!" );
+		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidElementWidth", "Element width must be a real-valued scalar of type double!" );
 	}
 
 	// b) element width
-	element_width_dbl = *( ( double * ) mxGetData( prhs[ 5 ] ) );
+	const double element_width_dbl = *( ( double * ) mxGetData( prhs[ 5 ] ) );
 
-	// c) ensure valid element width
-	if( element_width_dbl <= 0 ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidElementWidth", "Element width must be positive!" );
-
-	//------------------------------------------------------------------------------------------------------------------------------------------
-	// 6.) element pitch
-	//------------------------------------------------------------------------------------------------------------------------------------------
-	// a) check mxArray in workspace
-	if( !( mxIsDouble( prhs[ 6 ] ) && mxIsScalar( prhs[ 6 ] ) ) )
+	// c) ensure validity
+	if( !( ( element_width_dbl > 0 ) && mxIsFinite( element_width_dbl ) ) )
 	{
-		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidElementPitch", "Element pitch must be double and scalar!" );
+		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidElementWidth", "Element width must be positive and finite!" );
+	}
+
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// 6.) element pitch of the uniform linear array (m)
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// a) ensure real-valued mxDOUBLE_CLASS with one element
+	if( !( mxIsDouble( prhs[ 6 ] ) && !mxIsComplex( prhs[ 6 ] ) && mxIsScalar( prhs[ 6 ] ) ) )
+	{
+		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidElementPitch", "Element pitch must be a real-valued scalar of type double!" );
 	}
 
 	// b) element pitch
-	element_pitch_dbl = *( ( double * ) mxGetData( prhs[ 6 ] ) );
+	const double element_pitch_dbl = *( ( double * ) mxGetData( prhs[ 6 ] ) );
 
-	// c) ensure valid element width
-	if( element_pitch_dbl < element_width_dbl ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidElementPitch", "Element pitch must exceed element width!" );
-
-	//------------------------------------------------------------------------------------------------------------------------------------------
-	// 7.) lower bound for temporal frequencies
-	//------------------------------------------------------------------------------------------------------------------------------------------
-	// a) check mxArray in workspace
-	if( !( mxIsDouble( prhs[ 7 ] ) && mxIsScalar( prhs[ 7 ] ) ) )
+	// c) ensure validity
+	if( !( ( element_pitch_dbl > element_width_dbl ) && mxIsFinite( element_pitch_dbl ) ) )
 	{
-		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidFrequencyBound", "Lower frequency bound must be double and scalar!" );
-	}
-
-	// b) lower frequency bound
-	f_lb_dbl = *( ( double * ) mxGetData( prhs[ 7 ] ) );
-
-	//------------------------------------------------------------------------------------------------------------------------------------------
-	// 8.) upper bound for temporal frequencies
-	//------------------------------------------------------------------------------------------------------------------------------------------
-	// a) check mxArray in workspace
-	if( !( mxIsDouble( prhs[ 8 ] ) && mxIsScalar( prhs[ 8 ] ) ) )
-	{
-		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidFrequencyBound", "Upper frequency bound must be double and scalar!" );
-	}
-
-	// b) upper frequency bound
-	f_ub_dbl = *( ( double * ) mxGetData( prhs[ 8 ] ) );
-
-	// c) ensure valid upper frequency bound
-	if( f_ub_dbl < f_lb_dbl ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidFrequencyBound", "Upper frequency bound must equal or exceed the lower frequency bound!" );
-
-	//------------------------------------------------------------------------------------------------------------------------------------------
-	// 9.) small-signal sound speed
-	//------------------------------------------------------------------------------------------------------------------------------------------
-	// a) check mxArray in workspace
-	if( !( mxIsDouble( prhs[ 9 ] ) && mxIsScalar( prhs[ 9 ] ) ) )
-	{
-		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidSoundSpeed", "Average speed of sound must be double and scalar!" );
-	}
-
-	// b) small-signal sound speed
-	c_0_dbl = *( ( double * ) mxGetData( prhs[ 9 ] ) );
-
-	//------------------------------------------------------------------------------------------------------------------------------------------
-	// 10.) number of samples added to computed time delay
-	//------------------------------------------------------------------------------------------------------------------------------------------
-	if( nrhs >= 11 && !mxIsEmpty( prhs[ 10 ] ) && mxIsDouble( prhs[ 10 ] ) )
-	{
-		N_samples_shift_add_dbl = *( ( double * ) mxGetData( prhs[ 10 ] ) );
+		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidElementPitch", "Element pitch must be finite and larger than element width!" );
 	}
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// 11.) window function for the receive apodization ( object of class windows.window )
+	// 7.) speed of sound (m/s)
 	//------------------------------------------------------------------------------------------------------------------------------------------
-//TODO: create default F-number
-	// a) ensure existence of nonempty window
-	// if( nrhs < 12 || mxIsEmpty( prhs[ 11 ] ) )
-	// {
-	// 	// specify default window (TODO: create MATLAB object)
-	// 	index_window_rx = 0;
-	// }
-
-	// b) ensure single object of class windows.window
-	if( !( isa( prhs[ 11 ], "windows.window" ) && mxIsScalar( prhs[ 11 ] ) ) )
+	// a) ensure real-valued mxDOUBLE_CLASS with one element
+	if( !( mxIsDouble( prhs[ 7 ] ) && !mxIsComplex( prhs[ 7 ] ) && mxIsScalar( prhs[ 7 ] ) ) )
 	{
-		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidWindow", "Receive window must be a single object of the class windows.window!");
+		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidSoundSpeed", "Speed of sound must be a real-valued scalar of type double!" );
 	}
 
-	// c) map classes to window id
-	index_window_rx = get_window_id( prhs[ 11 ] );
+	// b) speed of sound
+	const double c_0_dbl = *( ( double * ) mxGetData( prhs[ 7 ] ) );
 
-	// d) check validity of window id
+	// c) ensure validity
+	if( !( ( c_0_dbl > 0 ) && mxIsFinite( c_0_dbl ) ) )
+	{
+		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidSoundSpeed", "Average speed of sound must be positive and finite!" );
+	}
+
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// 8.) frequency bounds (Hz) (1d array; 1st element: lower frequency bound, 2nd element: upper frequency bound)
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// a) default values
+	double f_lb_dbl = DBL_MIN;		// lower bound: smallest double greater than zero
+	double f_ub_dbl = f_s_dbl / 2; 	// upper bound: Nyquist frequency
+
+	// b) check presence of nonempty argument
+	if( nrhs >= 9 && !mxIsEmpty( prhs[ 8 ] ) )
+	{
+		// ensure real-valued mxDOUBLE_CLASS with two elements
+		if( !( mxIsDouble( prhs[ 8 ] ) && !mxIsComplex( prhs[ 8 ] ) && ( mxGetNumberOfElements( prhs[ 8 ] ) == 2 ) ) )
+		{
+			mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidFrequencyBounds", "Frequency bounds must be a real-valued vector with two entries of type double!" );
+		}
+
+		// frequency bounds
+		const double* const f_bounds_dbl = ( double * ) mxGetData( prhs[ 8 ] );
+
+		// extract frequency bounds
+		f_lb_dbl = f_bounds_dbl[ 0 ];
+		f_ub_dbl = f_bounds_dbl[ 1 ];
+	}
+
+	// c) ensure positive lower bound and valid upper bound
+	if( f_lb_dbl <= 0 ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidFrequencyBound", "Lower frequency bound must be positive!" );
+	if( f_ub_dbl <= f_lb_dbl ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidFrequencyBound", "Upper frequency bound must exceed the lower frequency bound!" );
+	if( f_ub_dbl > f_s_dbl / 2 ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidFrequencyBound", "Upper frequency bound must not exceed the Nyquist frequency!" );
+
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// 9.) time index of the sample extracted from the focused RF signal
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// a) default value
+	double index_t0_dbl = 0.0;
+
+	// b) check specified value
+	if( nrhs >= 10 && !mxIsEmpty( prhs[ 9 ] ) )
+	{
+		// ensure real-valued mxDOUBLE_CLASS with one element
+		if( !( mxIsDouble( prhs[ 9 ] ) && !mxIsComplex( prhs[ 9 ] ) && mxIsScalar( prhs[ 9 ] ) ) )
+		{
+			mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidTimeShift", "Time index must be a real-valued scalar of type double!" );
+		}
+
+		// read value
+		index_t0_dbl = *( ( double * ) mxGetData( prhs[ 9 ] ) );
+	}
+
+	// c) ensure nonnegative and finite time index
+	if( !( ( index_t0_dbl >= 0 ) && mxIsFinite( index_t0_dbl ) ) ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidTimeShift", "Time index must be nonnegative!" );
+
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// 10.) window function for the receive apodization ( object of class windows.window )
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// a) default value
+	int index_window_rx = 0;
+
+	// b) check specified value
+	if( nrhs >= 11 && !mxIsEmpty( prhs[ 10 ] ) )
+	{
+		// ensure single object of class windows.window
+		if( !( isa( prhs[ 10 ], "windows.window" ) && mxIsScalar( prhs[ 10 ] ) ) )
+		{
+			mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidWindow", "Receive window must be a single object of the class windows.window!");
+		}
+
+		// map classes to window id
+		index_window_rx = get_window_id( prhs[ 10 ] ); // index of apodization function
+	}
+
+	// c) check validity of window id
 	if( !( ( index_window_rx >= 0 ) && ( index_window_rx < N_WINDOWS ) ) ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidWindow", "Unknown window function!" );
 
-	// e) name of window function
-	if( string( prhs[ 11 ], window_rx_name, 128 * sizeof(char) ) ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidWindow", "Error reading window name!" );
+	// d) name of window function
+	char window_rx_name[ 128 ];
+	if( string( prhs[ 10 ], window_rx_name, 128 * sizeof( char ) ) ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidWindow", "Error reading window name!" );
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// 12.) F-number
+	// 11.) F-number
 	//------------------------------------------------------------------------------------------------------------------------------------------
 //TODO: create default F-number
+
 	// a) ensure single object of class f_numbers.f_number
-	if( !( isa( prhs[ 12 ], "f_numbers.f_number" ) && mxIsScalar( prhs[ 12 ] ) ) )
+	if( !( isa( prhs[ 11 ], "f_numbers.f_number" ) && mxIsScalar( prhs[ 11 ] ) ) )
 	{
 		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidFNumber", "F-number must be a single object of the class f_numbers.f_number!");
 	}
 
 	// b) check if F-number is fixed
-	if( isa( prhs[ 12 ], "f_numbers.constant" ) )
+	int F_number_constant = 0;	// indicates whether F-number is fixed
+	if( isa( prhs[ 11 ], "f_numbers.constant" ) )
 	{
 		F_number_constant = 1;
 	}
 
 	// c) name of F-number
-	if( string( prhs[ 12 ], f_number_name, 128 * sizeof(char) ) ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidFNumber", "Error reading F-number name!" );
+	char f_number_name[ 128 ];
+	if( string( prhs[ 11 ], f_number_name, 128 * sizeof(char) ) ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidFNumber", "Error reading F-number name!" );
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// 13.) normalization of the apodization weights
+	// 12.) normalization of the apodization weights
 	//------------------------------------------------------------------------------------------------------------------------------------------
+	// a) default value
+	int index_window_f = 0;
+
 	// b) ensure scalar object of class normalizations.normalization
-	if( !( isa( prhs[ 13 ], "normalizations.normalization" ) && mxIsScalar( prhs[ 13 ] ) ) )
+	if( !( isa( prhs[ 12 ], "normalizations.normalization" ) && mxIsScalar( prhs[ 12 ] ) ) )
 	{
 		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidNormalization", "Normalization must be a single object of the class normalizations.normalization!");
 	}
 
 	// c) map classes to window id
-	if( mxIsClass( prhs[ 13 ], "normalizations.windowed" ) )
+	if( mxIsClass( prhs[ 12 ], "normalizations.windowed" ) )
 	{
-		index_window_f = get_window_id( mxGetProperty( prhs[ 13 ], 0, "window" ) );
+		index_window_f = get_window_id( mxGetProperty( prhs[ 12 ], 0, "window" ) );
 	}
 
 	// d) check validity of window id
@@ -556,30 +492,76 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	mexPrintf( "index_window_f = %d\n", index_window_f );
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// 14.) index of the GPU
+	// 13.) index of the GPU
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	if( nrhs >= 15 && !mxIsEmpty( prhs[ 14 ] ) && mxIsDouble( prhs[ 14 ] ) )
+	// a) default value
+	int index_gpu = 0;
+
+	// b) check specified value
+	if( nrhs >= 14 && !mxIsEmpty( prhs[ 13 ] ) )
 	{
-		index_gpu = (int) *( ( double * ) mxGetData( prhs[ 14 ] ) );
+		// ensure real-valued mxDOUBLE_CLASS with one element
+		if( !( mxIsDouble( prhs[ 13 ] ) && !mxIsComplex( prhs[ 13 ] ) && mxIsScalar( prhs[ 13 ] ) ) )
+		{
+			mexErrMsgIdAndTxt( "gpu_bf_saft:InvalidCUDADevice", "Device index must be a real-valued scalar of type double!" );
+		}
+
+		// read device index
+		index_gpu = (int) *( ( double * ) mxGetData( prhs[ 13 ] ) );
 	}
 
+	// c) early exit if selected GPU does not exist
+	if( ( index_gpu < 0 ) || ( index_gpu >= N_devices ) ) mexErrMsgIdAndTxt( "gpu_bf_saft:InvalidCUDADevice", "Selected device does not exist!" );
+	// assertion:  index_gpu >= 0 && index_gpu < N_devices
+
+	// d) select device
+	checkCudaRTErrors( cudaSetDevice( index_gpu ) );
+
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// 14.) verbosity level of output
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// a) default value
+	char verbosity = 1;
+
+	// b) check specified value
+	if( nrhs >= 15 && !mxIsEmpty( prhs[ 14 ] ) )
+	{
+		// ensure real-valued mxDOUBLE_CLASS with one element
+		if( !( mxIsDouble( prhs[ 14 ] ) && !mxIsComplex( prhs[ 14 ] ) && mxIsScalar( prhs[ 14 ] ) ) )
+		{
+			mexErrMsgIdAndTxt( "gpu_bf_saft:InvalidVerbosityLevel", "Verbosity level must be a real-valued scalar of type double!" );
+		}
+
+		// read verbosity level
+		verbosity = (char) *( ( double * ) mxGetData( prhs[ 14 ] ) );
+	}
+
+	// c) early exit if selected verbosity level does not exist
+	if( ( verbosity < 0 ) || ( verbosity >= 4 ) ) mexErrMsgIdAndTxt( "gpu_bf_saft:InvalidVerbosityLevel", "Selected verbosity level does not exist!" );
+
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	// 1.) compute dependent parameters
+	// 2.) compute dependent parameters and display status information
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// a) propagation direction of steered plane wave
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	cos_theta_incident_dbl = cos( theta_incident_dbl );
-	sin_theta_incident_dbl = sin( theta_incident_dbl );
+	// x component of unit wave vector
+	const double e_steering_x_dbl = -sin( steering_angle_dbl );
+
+	// z component of unit wave vector
+	const double e_steering_z_dbl = cos( steering_angle_dbl );
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// b) array geometry
 	//------------------------------------------------------------------------------------------------------------------------------------------
+	// half-number of receive elements
+	const double M_el_rx = ( N_el_rx - 1.0 ) / 2.0;
+
 	// compute lateral positions of array elements
-	pos_rx_ctr_x = ( float * ) mxMalloc( sizeof( float ) * N_el_rx );
-	pos_rx_lb_x = ( float * ) mxMalloc( sizeof( float ) * N_el_rx );
-	pos_rx_ub_x = ( float * ) mxMalloc( sizeof( float ) * N_el_rx );
+	float* pos_rx_ctr_x = ( float * ) mxMalloc( sizeof( float ) * N_el_rx );
+	float* pos_rx_lb_x = ( float * ) mxMalloc( sizeof( float ) * N_el_rx );
+	float* pos_rx_ub_x = ( float * ) mxMalloc( sizeof( float ) * N_el_rx );
 
 	for( int index_element = 0; index_element < N_el_rx; index_element++ )
 	{
@@ -592,58 +574,58 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	// c) reference position
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// set reference position for the incident steered plane wave
-	pos_tx_x_ref_dbl = ( cos_theta_incident_dbl >= 0 ) ? - M_el_rx * element_pitch_dbl : M_el_rx * element_pitch_dbl;
+	const double pos_tx_ctr_x_ref_dbl = ( e_steering_x_dbl >= 0 ) ? - M_el_rx * element_pitch_dbl : M_el_rx * element_pitch_dbl;
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// d) compute order of DFT; employ zero-padding to achieve odd order
 	//------------------------------------------------------------------------------------------------------------------------------------------
 // TODO: determine time duration of focused signal
 	// tof_min, tof_max, t_lb, t_ub for all emissions
-	if( N_samples_t % 2 == 0 )
-	{
-		N_order_dft = N_samples_t + 1;
-	}
-	else
-	{
-		// N_order_dft = N_samples_t;
-		N_order_dft = N_samples_t + 2000;
-	}
+
+	// maximum relative time shift in the electronic focusing ( zero padding in DFT )
+	const int N_samples_t_pad = ceil( ( sqrt( ( pos_rx_ctr_x[ N_el_rx - 1 ] - pos_rx_ctr_x[ 0 ] ) * ( pos_rx_ctr_x[ N_el_rx - 1 ] - pos_rx_ctr_x[ 0 ] ) + positions_z_dbl[ 1 ] * positions_z_dbl[ 1 ] ) - positions_z_dbl[ 1 ] ) * f_s_dbl / c_0_dbl );
+
+	// number of points in DFT
+	const int N_order_dft = N_samples_t + N_samples_t_pad + 1 - ( ( N_samples_t + N_samples_t_pad ) % 2 );
 	// assertion: N_order_dft is odd
 
+	if( verbosity > 1 ) mexPrintf( "N_order_dft = %d\n", N_order_dft );
+
 	// number of distinct samples in DFT of real-valued signal
-	N_samples_dft = N_order_dft / 2 + 1;
+	const int N_samples_dft = N_order_dft / 2 + 1;
+
+	// arguments of complex exponential for focusing
+	const double argument_coefficient_dbl = 2 * M_PI * f_s_dbl / ( N_order_dft * c_0_dbl );
+	const double argument_add_dbl = 2 * M_PI * index_t0_dbl / N_order_dft;
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// e) compute parameters for bandpass filter
+	// e) compute parameters of bandpass filter
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	index_f_lb = ceil( f_lb_dbl * N_order_dft / f_s_dbl );
-	index_f_ub = floor( f_ub_dbl * N_order_dft / f_s_dbl );
+	// lower frequency index in the RF signals
+	const int index_f_lb = ceil( f_lb_dbl * N_order_dft / f_s_dbl );
+
+	// upper frequency index in the RF signals
+	const int index_f_ub = floor( f_ub_dbl * N_order_dft / f_s_dbl );
 
 	// check validity of index_f_lb and index_f_ub
-	if( ( index_f_lb > index_f_ub ) || ( index_f_lb < 0 ) || ( index_f_ub >= N_samples_dft ) )
+	if( ( index_f_lb > index_f_ub ) || ( index_f_lb <= 0 ) || ( index_f_ub >= N_samples_dft ) )
 	{
 		mexPrintf("error: invalid frequency boundaries f_lb and f_ub!");
 		return;
 	}
-	// assertion: index_f_lb <= index_f_ub, index_f_lb >= 0, index_f_ub < N_samples_dft
+	// assertion: index_f_lb <= index_f_ub, index_f_lb > 0, index_f_ub < N_samples_dft
 
 	// number of non-redundant samples of DFT of order N_order_dft after bandpass filter
-	N_samples_dft_bp  = index_f_ub - index_f_lb + 1;
+	const int N_samples_dft_bp  = index_f_ub - index_f_lb + 1; // computed number of non-redundant samples of DFT of order N_order_dft after bandpass filter
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// f) compute frequency-dependent F-number [ in MATLAB ]
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// if( F_number_constant )
-	// {
-	// 	// constant F-number
-	// 	f_number_values_dbl = ( double * ) mxGetData( mxGetProperty( prhs[ 12 ], 0, "value" ) );
-	// }
-	// else
-	// {
-		// create normalized element pitches in MATLAB workspace
-		mxArray* element_pitch_norm_matlab = mxCreateDoubleMatrix( N_samples_dft_bp, 1, mxREAL );
+	// create normalized element pitches in MATLAB workspace
+	mxArray* element_pitch_norm_matlab = mxCreateDoubleMatrix( N_samples_dft_bp, 1, mxREAL );
 
-		element_pitch_norm_dbl = (double *) mxGetData( element_pitch_norm_matlab );
+		// frequency axis
+		double* element_pitch_norm_dbl = (double *) mxGetData( element_pitch_norm_matlab );
 
 		// iterate frequencies
 		for( int index_f = 0; index_f < N_samples_dft_bp; index_f++ )
@@ -655,218 +637,315 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 		}
 
 		// compute values of the frequency-dependent F-number
-		f_number_values_dbl = compute_values( prhs[ 12 ], element_pitch_norm_matlab );
+		const double* const f_number_values_dbl = compute_values( prhs[ 11 ], element_pitch_norm_matlab );
 	// }
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// g) compute frequency-dependent F-number
+	// g) compute parallelization settings
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	cufft_batch_size = N_el_rx;
-
-	argument_factor_dbl = 2 * M_PI / N_order_dft;
-
 	// number of blocks to process in parallel
-	N_blocks_x = ceil( ( (double) N_pos_lat_x ) / N_THREADS_X );
-	N_blocks_z = ceil( ( (double) N_pos_lat_z ) / N_THREADS_Y );
+	const int N_blocks_x = ceil( ( (double) N_pos_lat_x ) / N_THREADS_X );
+	const int N_blocks_z = ceil( ( (double) N_pos_lat_z ) / N_THREADS_Y );
 
 	// determine relevant range of frequency indices
-	N_blocks_Omega_bp = ceil( ((double) N_samples_dft_bp) / N_THREADS_PER_BLOCK );
+	const int N_blocks_Omega_bp = ceil( ((double) N_samples_dft_bp) / N_THREADS_PER_BLOCK );  // number of frequency blocks
 
-	/*=====================================================================
-	 * 2.) print global status information
-	 *=====================================================================*/
-	mexPrintf( " %s\n", "================================================================================");
-	mexPrintf( " GPU BF Toolbox: DAS, steered PW, v.%s (%s), Status Information\n", REVISION, DATE);
-	mexPrintf( " (c) 2010-2022, M. F. Schiffner. All rights reserved.\n");
-	mexPrintf( " %s\n", "================================================================================");
-	mexPrintf( "  %-20s: % 5d x %-5d %5s", "lattice geometry", N_pos_lat_x, N_pos_lat_z, "");
-	mexPrintf( " %-22s: %-8d\n", "number of samples", N_samples_t);
-	mexPrintf( "  %-20s: %-11d %7s", "number rx channels", N_el_rx, "");
-	mexPrintf( " %-22s: %5.1f MHz\n", "sampling rate", f_s_dbl / 1000000);
-	mexPrintf( "  %-20s: %7.2f m/s %7s", "average sound speed", c_0_dbl, "");
-	mexPrintf( " %-22s: %5.1f MHz (%d)\n", "lower frequency bound", f_lb_dbl / 1000000, index_f_lb);
-	mexPrintf( "  %-20s: %6.2f° (%4.1f;%4.1f)", "angle of incidence", theta_incident_dbl * 180 / M_PI, cos_theta_incident_dbl, sin_theta_incident_dbl);
-	mexPrintf( " %-22s: %5.1f MHz (%d)\n", "upper frequency bound", f_ub_dbl / 1000000, index_f_ub);
-	mexPrintf( "  %-20s: %7.2f mm %8s", "reference position", pos_tx_x_ref_dbl * 1000, "");
-	mexPrintf( " %-22s: %-6d\n", "number of frequencies", N_samples_dft_bp);
-	mexPrintf( "  %-20s: %-6.2f %12s", "additional shift", N_samples_shift_add_dbl, "");
-	mexPrintf( " %-22s: %s (%d)\n", "window", window_rx_name, index_window_rx );
-	mexPrintf( "  %-20s: %s\n", "F-number", f_number_name );
-	mexPrintf( "  %-20s: %s\n", "normalization", "test" );
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// h) print global status information
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	if( verbosity > 0 )
+	{
+		mexPrintf( " %s\n", "================================================================================" );
+		mexPrintf( " GPU BF Toolbox: DAS, steered PW, v.%s (%s), Status Information\n", REVISION, DATE );
+		mexPrintf( " (c) 2010-2023, M. F. Schiffner. All rights reserved.\n" );
+		mexPrintf( " %s\n", "================================================================================" );
+		mexPrintf( "  %-20s: % 5d x %-5d %5s", "lattice geometry", N_pos_lat_x, N_pos_lat_z, "" );
+		mexPrintf( " %-22s: %-8d\n", "number of samples", N_samples_t );
+		mexPrintf( "  %-20s: %-11d %7s", "number rx channels", N_el_rx, "" );
+		mexPrintf( " %-22s: %5.1f MHz\n", "sampling rate", f_s_dbl / 1000000 );
+		mexPrintf( "  %-20s: %7.2f m/s %7s", "average sound speed", c_0_dbl, "" );
+		mexPrintf( " %-22s: %5.1f MHz (%d)\n", "lower frequency bound", f_lb_dbl / 1000000, index_f_lb );
+		mexPrintf( "  %-20s: %6.2f° (%4.1f;%4.1f)", "angle of incidence", steering_angle_dbl * 180 / M_PI, e_steering_x_dbl, e_steering_z_dbl );
+		mexPrintf( " %-22s: %5.1f MHz (%d)\n", "upper frequency bound", f_ub_dbl / 1000000, index_f_ub );
+		mexPrintf( "  %-20s: %7.2f mm %8s", "reference position", pos_tx_ctr_x_ref_dbl * 1000, "" );
+		mexPrintf( " %-22s: %-6d\n", "number of frequencies", N_samples_dft_bp );
+		mexPrintf( "  %-20s: %-6.2f %12s", "additional shift", index_t0_dbl, "" );
+		mexPrintf( " %-22s: %s (%d)\n", "window", window_rx_name, index_window_rx );
+		mexPrintf( "  %-20s: %s\n", "F-number", f_number_name );
+		mexPrintf( "  %-20s: %s\n", "normalization", "test" );
 
-    //mexPrintf(" %-22s: %-6.2f um\n", "maximum delta_x", delta_x_max * 1e6);
-    //mexPrintf(" %-22s: %-6.2f um\n", "maximum delta_z", delta_z_max * 1e6);
+		//mexPrintf(" %-22s: %-6.2f um\n", "maximum delta_x", delta_x_max * 1e6);
+		//mexPrintf(" %-22s: %-6.2f um\n", "maximum delta_z", delta_z_max * 1e6);
+	}
 
-	//=====================================================================
-	// 3.) check number of devices supporting CUDA and select device
-	//=====================================================================
-	int N_devices = 0;         // number of GPUs
-// TODO: gpu_bf_set_device
-	// check number of devices supporting CUDA
-	checkCudaRTErrors( cudaGetDeviceCount( &N_devices ) );
-	// mexPrintf( "\nnumber of GPUs supporting CUDA: %d\n", N_devices );
-	// mexPrintf("using GPU: %d\n", index_gpu);
+	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	// 3.) infer and display properties of selected device
+	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-	// early exit if no CUDA-enabled GPU was detected
-	if( N_devices < 1 ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:NoCUDADevices", "Could not find any CUDA capable devices!" );
-
-	// early exit if selected GPU does not exist
-	if( index_gpu >= N_devices || index_gpu < 0 ) mexErrMsgIdAndTxt( "gpu_bf_saft:InvalidCUDADevice", "Invalid GPU selected!" );
-	// assertion: N_devices > 0 && 0 <= index_gpu < N_devices
-
-	// set device to operate on
-	checkCudaRTErrors( cudaSetDevice( index_gpu ) );
-
-	//=====================================================================
-	// 4.) infer and display properties of selected device
-	//=====================================================================
-	cudaDeviceProp deviceProp;
-	int driverVersion = 0;       // driver version
-	int runtimeVersion = 0;      // runtime version
-	int capability_double = 0;   // flag for capability for double precision
-
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// a) hardware properties
+	//------------------------------------------------------------------------------------------------------------------------------------------
 	// check properties of chosen GPU
+	cudaDeviceProp deviceProp;
 	checkCudaRTErrors( cudaGetDeviceProperties( &deviceProp, index_gpu ) );
 
 	// check capabilities for double precision
-	if( deviceProp.major == 1 && deviceProp.minor >= 3 )
-	{
-		capability_double = 1;
-	}
-	if( deviceProp.major >= 2)
-	{
-		capability_double = 1;
-	}
+	// int capability_double = 0;
+	// if( ( deviceProp.major == 1 ) && ( deviceProp.minor >= 3 ) ) capability_double = 1;
+	// if( deviceProp.major >= 2 ) capability_double = 1;
 
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// b) software properties
+	//------------------------------------------------------------------------------------------------------------------------------------------
 	// get driver version
+	int driverVersion = 0;
 	checkCudaRTErrors( cudaDriverGetVersion( &driverVersion ) );
 
 	// get runtime version
+	int runtimeVersion = 0;
 	checkCudaRTErrors( cudaRuntimeGetVersion( &runtimeVersion ) );
 
-	/*=====================================================================
-     * 5.) print GPU status information
-     *=====================================================================*/
-    mexPrintf(" %s\n", "--------------------------------------------------------------------------------");
-    mexPrintf(" Information for GPU device %-1d of %-1d:\n", index_gpu, N_devices);
-    mexPrintf(" %s\n", "--------------------------------------------------------------------------------");
-    mexPrintf("  %-20s: %-19s", "name of device", deviceProp.name, "");
-    mexPrintf(" %-22s: %-3d\n", "num. multiprocessors", deviceProp.multiProcessorCount);
-    mexPrintf("  %-20s: %-1d.%-1d %15s", "compute capability", deviceProp.major, deviceProp.minor, "");
-    mexPrintf(" %-22s: %-8d\n", "double precision", capability_double);
-    mexPrintf("  %-20s: %-8.2f MiByte %3s", "total global memory", ((double) deviceProp.totalGlobalMem) / BYTES_PER_MEBIBYTE, "");
-    mexPrintf(" %-22s: %-6.2f KiByte\n", "total constant memory", ((double) deviceProp.totalConstMem) / BYTES_PER_KIBIBYTE);
-    mexPrintf("  %-20s: %-6.2f KiByte %5s", "shared mem. / block", ((double) deviceProp.sharedMemPerBlock) / BYTES_PER_KIBIBYTE, "");
-    mexPrintf(" %-22s: %-8d\n", "registers per block", deviceProp.regsPerBlock);
-    mexPrintf("  %-20s: %2d.%1d %14s", "driver version", driverVersion / 1000, (driverVersion % 100) / 10, "");
-    mexPrintf(" %-22s: %2d.%1d\n", "runtime version", runtimeVersion / 1000, (runtimeVersion % 100) / 10);
-    mexPrintf("  %-20s: %-8s %10s", "selected precision", "single", "");
-    mexPrintf(" %-22s: %-8d\n", "warp size", deviceProp.warpSize);
-    
-    mexPrintf(" %s\n", "--------------------------------------------------------------------------------");
-	mexPrintf(" parallelization parameters\n");
-	mexPrintf(" %s\n", "--------------------------------------------------------------------------------");
-	mexPrintf("  %-20s: %-4d x %-4d %7s", "number of threads", N_THREADS_X, N_THREADS_Y, "");
-    mexPrintf(" %-22s: %-4d (%-4d)\n", "threads per blocks", N_THREADS_PER_BLOCK, deviceProp.maxThreadsPerBlock);
-    mexPrintf("  %-20s: %-4d x %-4d %7s", "number of blocks", N_blocks_x, N_blocks_z, "");
-    mexPrintf(" %-22s: %-4d\n", "frequency blocks", N_blocks_Omega_bp);
-
-	/*=====================================================================
-	 * 6.) start calculations depending on selected precision
-	 *=====================================================================*/
-	if(0)
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// c) print GPU status information
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	if( verbosity > 0 )
 	{
-		mexPrintf("\nprecision of calculations: double\n");
+		mexPrintf(" %s\n", "--------------------------------------------------------------------------------");
+		mexPrintf(" Selected device %-1d of %-1d: %-56s\n", index_gpu, N_devices, deviceProp.name );
+		mexPrintf(" %s\n", "--------------------------------------------------------------------------------");
+		// mexPrintf("  %-20s: %-19s", "name of device", deviceProp.name, "");
+		mexPrintf("  %-20s: %-1d.%-1d %15s", "compute capability", deviceProp.major, deviceProp.minor, "");
+		mexPrintf(" %-22s: %-3d\n", "num. multiprocessors", deviceProp.multiProcessorCount);
+		// mexPrintf(" %-22s: %-8d\n", "double precision", capability_double);
+		mexPrintf("  %-20s: %-8.2f MiByte %3s", "total global memory", ((double) deviceProp.totalGlobalMem) / BYTES_PER_MEBIBYTE, "");
+		mexPrintf(" %-22s: %-6.2f KiByte\n", "total constant memory", ((double) deviceProp.totalConstMem) / BYTES_PER_KIBIBYTE);
+		mexPrintf("  %-20s: %-6.2f KiByte %5s", "shared mem. / block", ((double) deviceProp.sharedMemPerBlock) / BYTES_PER_KIBIBYTE, "");
+		mexPrintf(" %-22s: %-8d\n", "registers per block", deviceProp.regsPerBlock);
+		mexPrintf("  %-20s: %2d.%1d %14s", "driver version", driverVersion / 1000, (driverVersion % 100) / 10, "");
+		mexPrintf(" %-22s: %2d.%1d\n", "runtime version", runtimeVersion / 1000, (runtimeVersion % 100) / 10);
+		mexPrintf("  %-20s: %-8s %10s", "selected precision", "single", "");
+		mexPrintf(" %-22s: %-8d\n", "warp size", deviceProp.warpSize);
+
+		mexPrintf(" %s\n", "--------------------------------------------------------------------------------");
+		mexPrintf(" parallelization parameters\n");
+		mexPrintf(" %s\n", "--------------------------------------------------------------------------------");
+		mexPrintf("  %-20s: %-4d x %-4d %7s", "number of threads", N_THREADS_X, N_THREADS_Y, "");
+		mexPrintf(" %-22s: %-4d (%-4d)\n", "threads per blocks", N_THREADS_PER_BLOCK, deviceProp.maxThreadsPerBlock);
+		mexPrintf("  %-20s: %-4d x %-4d %7s", "number of blocks", N_blocks_x, N_blocks_z, "");
+		mexPrintf(" %-22s: %-4d\n", "frequency blocks", N_blocks_Omega_bp);
 	}
-	else
+
+	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	// 4.) allocate and initialize device memory / convert data to float and copy to the device
+	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	// size of conversion buffer: use maximum of
+		// a) d_positions_x:
+		//    sizeof( t_float_gpu ) * N_pos_lat_x
+		// b) d_positions_z:
+		//    sizeof( t_float_gpu ) * N_pos_lat_z;
+		// c) d_data_RF:
+		//    sizeof( cufftComplex ) * N_samples_dft * N_el_rx
+		// d) d_pos_rx_ctr_x, d_pos_rx_lb_x, d_pos_rx_ub_x:
+		//    sizeof( t_float_gpu ) * N_el_rx
+		// e) d_f_number_values:
+		//    sizeof( float ) * N_samples_dft_bp
+		// f) d_image:
+		//    sizeof( cufftComplex ) * N_pos_lat_x * N_pos_lat_z
+		// g) d_weights:
+		//    sizeof( t_float_gpu ) * N_pos_lat_x * N_pos_lat_z
+		//
+		// => c) > d)
+		// => f) > g)
+		// => a), d) vs. c)
+		// N_f_unique * max( N_points, N_objects ) vs. N_points_occupied * N_objects
+
+		// b) d_indices_grid_FOV_shift[ index_element ]: N_points_occupied * sizeof( int ) [ indices of shifted grid points for each array element ]
+// reinterpret the memory
+	// const size_t size_bytes_buffer = sizeof( t_float_gpu ) * N_samples_t * N_el_rx;
+	// if( DEBUG_MODE ) mexPrintf( "size_bytes_buffer = %.2f MiB (%zu B)\n", ( ( double ) size_bytes_buffer ) / BYTES_PER_MEBIBYTE, size_bytes_buffer );
+
+	// allocate page-locked memory
+	// t_float_gpu* buffer = NULL;
+	// checkCudaErrors( cudaHostAlloc( (void**) &buffer, size_bytes_buffer, cudaHostAllocDefault ) );
+
+	// 	// place start event into the default stream
+	// 	checkCudaRTErrors( cudaEventRecord( start, 0 ) );
+	
+	// 	// place stop event into the default stream
+	// 	checkCudaRTErrors( cudaEventRecord( stop, 0 ) );
+	// 	checkCudaRTErrors( cudaEventSynchronize( stop ) );
+
+	// 	// compute elapsed time
+	float time_transfer_to_device = -1.0f;  // elapsed time for memory transfer host to device (ms)
+	// 	checkCudaRTErrors( cudaEventElapsedTime( &time_transfer_to_device, start, stop ) );
+
+	// 	mexPrintf("done! (%.3f ms)\n", time_transfer_to_device);
+
+	// 	// flush cache
+	// 	mexEvalString( "drawnow;" );
+
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// 0.) lateral voxel positions
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// a) compute required size for array in bytes (FLOAT)
+	const size_t size_bytes_positions_x = sizeof( t_float_gpu ) * N_pos_lat_x;
+
+	// b) allocate memory
+	t_float_gpu* positions_x = (t_float_gpu *) mxMalloc( size_bytes_positions_x );
+
+	// c) convert lateral image coordinates
+	for( int l_x = 0; l_x < N_pos_lat_x; l_x++ )
 	{
+		positions_x[ l_x ] = (t_float_gpu) positions_x_dbl[ l_x ];
+	}
 
-		/*===============================================================
-		 * compute required size for arrays in bytes (FLOAT)
-		 *===============================================================*/
-		size_bytes_positions_x = sizeof( t_float_gpu ) * N_pos_lat_x;
-		size_bytes_positions_z = sizeof( t_float_gpu ) * N_pos_lat_z;
-		size_bytes_RF_data = sizeof( cufftComplex ) * N_samples_dft * N_el_rx;
-		size_bytes_signal  = sizeof( t_float_gpu ) * N_samples_t;
-		size_bytes_positions_rx = sizeof( t_float_gpu ) * N_el_rx;
-		size_bytes_weights = sizeof( t_float_gpu ) * N_pos_lat_x * N_pos_lat_z;
-		size_bytes_f_numbers = sizeof( float ) * N_samples_dft_bp;
+	// allocate device memory
+	t_float_gpu* d_positions_x = NULL;
+	checkCudaRTErrors( cudaMalloc( (void **) &d_positions_x, size_bytes_positions_x ) );
+	// checkCudaErrors( cudaMallocPitch( (void **) &d_h_ref_float_complex, &pitch_h_ref, N_f_unique * sizeof( t_float_complex_gpu ), N_points ) );
 
-		size_bytes_DAS_image_RF_complex = sizeof( cufftComplex ) * N_pos_lat_x * N_pos_lat_z;
+	// copy data
+	checkCudaRTErrors( cudaMemcpy( d_positions_x, positions_x, size_bytes_positions_x, cudaMemcpyHostToDevice ) );
+	// checkCudaErrors( cudaMemcpy2D( d_h_ref_float_complex, pitch_h_ref, buffer, N_f_unique * sizeof( t_float_complex_gpu ), N_f_unique * sizeof( t_float_complex_gpu ), N_points, cudaMemcpyHostToDevice ) );
 
-		//===============================================================
-		// allocate memory for the MATLAB output
-		//===============================================================
-		// complex-valued DAS image
-		plhs[ 0 ] = mxCreateNumericMatrix( N_pos_lat_z, N_pos_lat_x, mxSINGLE_CLASS, mxCOMPLEX );
-		image_DAS_real = (float*) mxGetData( plhs[ 0 ] );
-		image_DAS_imag = (float*) mxGetImagData( plhs[ 0 ] );
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// 1.) axial voxel positions
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// a) compute required size for array in bytes (FLOAT)
+	const size_t size_bytes_positions_z = sizeof( t_float_gpu ) * N_pos_lat_z;
 
-		// total weights for grid points (host)
-		plhs[ 1 ] = mxCreateNumericMatrix( N_pos_lat_z, N_pos_lat_x, mxSINGLE_CLASS, mxREAL );
-		h_weights = (float*) mxGetData( plhs[ 1 ] );
+	// b) allocate memory
+	t_float_gpu* positions_z = (t_float_gpu *) mxMalloc( size_bytes_positions_z );
 
-		/*===============================================================
-		 * convert input data to float
-		 *===============================================================*/
-		pos_lat_x = (float *) mxMalloc( size_bytes_positions_x );
-		pos_lat_z = (float *) mxMalloc( size_bytes_positions_z );
-		data_RF   = (float *) mxMalloc( sizeof( float ) * N_samples_t * N_el_rx );
-		f_number_values_flt = (float *) mxMalloc( size_bytes_f_numbers );
+	// c) conversion to selected data type
+	for( int l_z = 0; l_z < N_pos_lat_z; l_z++ )
+	{
+		positions_z[ l_z ] = (t_float_gpu) positions_z_dbl[ l_z ];
+	}
 
-		// convert lateral image coordinates
-		for( l_x = 0; l_x < N_pos_lat_x; l_x++ )
+	// d) allocate device memory
+	t_float_gpu* d_positions_z = NULL;
+	checkCudaRTErrors( cudaMalloc( (void **) &d_positions_z, size_bytes_positions_z ) );
+
+	// e) copy data
+	checkCudaRTErrors( cudaMemcpy( d_positions_z, positions_z, size_bytes_positions_z, cudaMemcpyHostToDevice ) );
+
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// 2.) RF data
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// a) compute required size for array in bytes (FLOAT)
+	const size_t size_bytes_RF_data = sizeof( cufftComplex ) * N_samples_dft * N_el_rx;
+	const size_t size_bytes_RF_data_host = sizeof( t_float_gpu ) * N_samples_t * N_el_rx;
+
+	// b) allocate memory
+	t_float_gpu* data_RF = (t_float_gpu *) mxMalloc( size_bytes_RF_data_host );
+
+	// c) conversion to selected data type
+	for( int k_rx = 0; k_rx < N_el_rx; k_rx++ )
+	{
+		for( int l_z = 0; l_z < N_samples_t; l_z++ )
 		{
-   			pos_lat_x[ l_x ] = (float) pos_lat_x_dbl[ l_x ];
+			data_RF[ k_rx * N_samples_t + l_z ] = (t_float_gpu) data_RF_dbl[ k_rx * N_samples_t + l_z ];      
 		}
+	}
 
-		// convert axial image coordinates
-		for( l_z = 0; l_z < N_pos_lat_z; l_z++ )
-		{
-			pos_lat_z[ l_z ] = (float) pos_lat_z_dbl[ l_z ];
-		}
+	// d) allocate device memory for RF data and its DFT [additional memory for in-place DFT]
+	t_float_gpu* d_data_RF = NULL;
+	checkCudaRTErrors( cudaMalloc( (void **) &d_data_RF, size_bytes_RF_data ) );
 
-		// convert RF data
-		for( k_rx = 0; k_rx < N_el_rx; k_rx++ )
-		{
-			for( l_z = 0; l_z < N_samples_t; l_z++ )
-			{
-				data_RF[ k_rx * N_samples_t + l_z ] = (float) data_RF_dbl[ k_rx * N_samples_t + l_z ];      
-			}
-		}
+	// e) initialize RF data (necessary because of zero-padding)
+	checkCudaRTErrors( cudaMemset( d_data_RF, 0, size_bytes_RF_data ) );
 
-		// convert frequency-dependent F-number
-		for( int index_f = 0; index_f < N_samples_dft_bp; index_f++ )
-		{
-			f_number_values_flt[ index_f ] = (float) f_number_values_dbl[ index_f ];
-			// mexPrintf( "f_number_values_flt[ %d ] = %.2f\n", index_f, f_number_values_flt[ index_f ] );
-		}
-		// mxDestroyArray( lhs[ 0 ] );
+	// f) copy data [correctly pad RF data to allow in place transform]
+	const size_t size_bytes_signal  = sizeof( t_float_gpu ) * N_samples_t;
+	for( int k_rx = 0; k_rx < N_el_rx; k_rx++ )
+	{
+		checkCudaRTErrors( cudaMemcpy( d_data_RF + k_rx * N_samples_dft * 2, &( data_RF[ k_rx * N_samples_t ] ), size_bytes_signal, cudaMemcpyHostToDevice ) );
+	}
+	// N_order_dft / 2 + 1 | data_RF + k_rx * N_samples_t
 
-		// convert components of direction vector
-		cos_theta_incident_flt = (float) cos_theta_incident_dbl;
-		sin_theta_incident_flt = (float) sin_theta_incident_dbl;
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// 3.) array geometry
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// a) compute required size for array in bytes
+	const size_t size_bytes_positions_rx = sizeof( t_float_gpu ) * N_el_rx;
 
-		// convert reference position
-		pos_tx_ctr_x_ref_flt = (float) pos_tx_x_ref_dbl;
+	// b) allocate device memory for RF data and its DFT [additional memory for in-place DFT]
+	t_float_gpu* d_pos_rx_ctr_x = NULL; t_float_gpu* d_pos_rx_lb_x = NULL; t_float_gpu* d_pos_rx_ub_x = NULL;
+	checkCudaRTErrors( cudaMalloc( (void **) &d_pos_rx_ctr_x, size_bytes_positions_rx) );
+	checkCudaRTErrors( cudaMalloc( (void **) &d_pos_rx_lb_x, size_bytes_positions_rx) );
+	checkCudaRTErrors( cudaMalloc( (void **) &d_pos_rx_ub_x, size_bytes_positions_rx) );
 
-		// convert additional time shift
-		N_samples_shift_add_flt = (float) N_samples_shift_add_dbl;
+	// c) copy data
+	checkCudaRTErrors( cudaMemcpy( d_pos_rx_ctr_x, pos_rx_ctr_x, size_bytes_positions_rx, cudaMemcpyHostToDevice ) );
+	checkCudaRTErrors( cudaMemcpy( d_pos_rx_lb_x, pos_rx_lb_x, size_bytes_positions_rx, cudaMemcpyHostToDevice ) );
+	checkCudaRTErrors( cudaMemcpy( d_pos_rx_ub_x, pos_rx_ub_x, size_bytes_positions_rx, cudaMemcpyHostToDevice ) );
 
-		// convert sampling rate and speed of sound
-		f_s_over_c_0_flt = (float) (f_s_dbl / c_0_dbl);
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// 4.) F-number
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// a) compute required size for array in bytes (FLOAT)
+	const size_t size_bytes_f_numbers = sizeof( t_float_gpu ) * N_samples_dft_bp;
 
-		// convert factor in exponent
-		argument_factor_flt = (float) argument_factor_dbl;
+	// b) allocate memory
+	t_float_gpu* f_number_values = (t_float_gpu*) mxMalloc( size_bytes_f_numbers );
 
-		/*===============================================================
-		 * print memory status information
-		 *===============================================================*/
-		size_bytes_total = size_bytes_positions_x + size_bytes_positions_z + size_bytes_RF_data + 3 * size_bytes_positions_rx + size_bytes_f_numbers + size_bytes_DAS_image_RF_complex + size_bytes_weights;
+	// c) convert frequency-dependent F-number
+	for( int index_f = 0; index_f < N_samples_dft_bp; index_f++ )
+	{
+		f_number_values[ index_f ] = (t_float_gpu) f_number_values_dbl[ index_f ];
+		// mexPrintf( "f_number_values[ %d ] = %.2f\n", index_f, f_number_values[ index_f ] );
+	}
 
-		// get available amount of global memory on GPU device
-		checkCudaRTErrors( cudaMemGetInfo( &mem_available, &(deviceProp.totalGlobalMem) ) );
+	// d) allocate device memory
+	t_float_gpu* d_f_number_values = NULL;
+	checkCudaRTErrors( cudaMalloc( (void **) &d_f_number_values, size_bytes_f_numbers ) );
 
+	// e) copy data
+	checkCudaRTErrors( cudaMemcpy( d_f_number_values, f_number_values, size_bytes_f_numbers, cudaMemcpyHostToDevice ) );
+
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// 5.) TODO: arguments
+	//------------------------------------------------------------------------------------------------------------------------------------------
+
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// 6.) image
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// a) compute required size for array in bytes
+	const size_t size_bytes_DAS_image_RF_complex = sizeof( cufftComplex ) * N_pos_lat_x * N_pos_lat_z;
+
+	// b) allocate device memory
+	cufftComplex* d_image = NULL;
+	checkCudaRTErrors( cudaMalloc( (void **) &d_image, size_bytes_DAS_image_RF_complex ) );
+
+	// c) initialize complex-valued DAS image
+	checkCudaRTErrors( cudaMemset( d_image, 0, size_bytes_DAS_image_RF_complex ) );
+
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// 7.) weights
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// a) compute required size for array in bytes
+	size_t size_bytes_weights = sizeof( t_float_gpu ) * N_pos_lat_x * N_pos_lat_z;
+
+	// b) allocate device memory
+	t_float_gpu* d_weights = NULL;
+	checkCudaRTErrors( cudaMalloc( (void**) &d_weights, size_bytes_weights ) );
+
+	// c) initialize weights w/ zeros
+	checkCudaRTErrors( cudaMemset( d_weights, 0, size_bytes_weights ) );
+
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// 7.) memory status
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// total memory consumption
+	const size_t size_bytes_total = size_bytes_positions_x + size_bytes_positions_z + size_bytes_RF_data + 3 * size_bytes_positions_rx + size_bytes_f_numbers + size_bytes_DAS_image_RF_complex + size_bytes_weights;
+
+	// get available amount of global memory on GPU device
+	size_t mem_available = 0;
+	checkCudaRTErrors( cudaMemGetInfo( &mem_available, &(deviceProp.totalGlobalMem) ) );
+
+	if( verbosity > 0 )
+	{
 		mexPrintf(" %s\n", "--------------------------------------------------------------------------------");
 		mexPrintf(" memory consumption (available global memory: %-6.2f MiByte (%6.2f %%))\n", ((double) mem_available) / BYTES_PER_MEBIBYTE, ((double) mem_available) * 100 / deviceProp.totalGlobalMem);
 		mexPrintf(" %s\n", "--------------------------------------------------------------------------------");
@@ -879,261 +958,220 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 		mexPrintf(" %4s %-29s: % 10.2f KiByte (%6.2f %%)\n", "", "weights", ((double) size_bytes_weights) / BYTES_PER_KIBIBYTE, ((double) size_bytes_weights) * 100 / size_bytes_total);
 		mexPrintf(" %4s %s  %s\n", "", "-----------------------------", "----------------------------");
 		mexPrintf(" %4s %-29s: % 10.2f KiByte (%6.2f %%)\n", "", "total", ((double) size_bytes_total) / BYTES_PER_KIBIBYTE, 100.0);
+	}
 
-		/*===============================================================
-		 * allocate memory on device
-		 *===============================================================*/
-		// a) grid points
-		checkCudaRTErrors( cudaMalloc( (void **) &d_pos_lat_x_flt, size_bytes_positions_x ) );
-		checkCudaRTErrors( cudaMalloc( (void **) &d_pos_lat_z_flt, size_bytes_positions_z ) );
+	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	// 5.) compute DFTs of data_RF along first MATLAB dimension; choose appropriate order; in place
+	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	// elapsed time for fft algorithm (ms)
+	float time_dft = -1.0f;
 
-		// b) allocate memory for RF data and its DFT
-		checkCudaRTErrors( cudaMalloc( (void **) &data_RF_flt_gpu, size_bytes_RF_data ) );
+	// print status
+	if( verbosity > 1 ) mexPrintf(" %4s 2.) %s... ", "", "computing DFT");
 
-		// initialize RF data (necessary because of zero-padding)
-		checkCudaRTErrors( cudaMemset( data_RF_flt_gpu, 0, size_bytes_RF_data ) );
+	// create events for time-measurement
+	cudaEvent_t start, stop;
+	checkCudaRTErrors( cudaEventCreate( &start ) );
+	checkCudaRTErrors( cudaEventCreate( &stop ) );
 
-		// c) array geometry
-		checkCudaRTErrors( cudaMalloc( (void **) &d_pos_rx_ctr_x, size_bytes_positions_rx) );
-		checkCudaRTErrors( cudaMalloc( (void **) &d_pos_rx_lb_x, size_bytes_positions_rx) );
-		checkCudaRTErrors( cudaMalloc( (void **) &d_pos_rx_ub_x, size_bytes_positions_rx) );
+	// place start event into the default stream
+	checkCudaRTErrors( cudaEventRecord( start, 0 ) );
 
-		// d) allocate memory for frequency-dependent F-number
-		checkCudaRTErrors( cudaMalloc( (void **) &d_f_number_values, size_bytes_f_numbers ) );
+	// create plan for 1-D R2C DFT [batch size: N_el_rx]
+	cufftHandle plan;
+	checkCudaFFTErrors( cufftPlan1d( &plan, N_order_dft, CUFFT_R2C, N_el_rx ) );
 
-		// e) allocate memory for DAS image
-		checkCudaRTErrors( cudaMalloc( (void **) &d_image_flt_cpx, size_bytes_DAS_image_RF_complex ) );
+	// execute DFT plan
+	checkCudaFFTErrors( cufftExecR2C( plan, (cufftReal *) d_data_RF, (cufftComplex *) d_data_RF ) );
 
-		// initialize complex-valued DAS image
-		checkCudaRTErrors( cudaMemset( d_image_flt_cpx, 0, size_bytes_DAS_image_RF_complex ) );
+	// destroy plan after execution
+	checkCudaFFTErrors( cufftDestroy( plan ) );
 
-		// f) allocate memory for weights
-		checkCudaRTErrors( cudaMalloc( (void**) &d_weights, size_bytes_weights ) );
+	// place stop event into the default stream
+	checkCudaRTErrors( cudaEventRecord( stop, 0 ) );
+	checkCudaRTErrors( cudaEventSynchronize( stop ) );
 
-		// initialize weights
-		checkCudaRTErrors( cudaMemset( d_weights, 0, size_bytes_weights ) );
+	// compute elapsed time
+	checkCudaRTErrors( cudaEventElapsedTime( &time_dft, start, stop ) );
 
-		/*=================================================================
-		 * 1.) copy data to device
-		 *=================================================================*/
-		mexPrintf(" %s\n", "--------------------------------------------------------------------------------");
-		mexPrintf(" running algorithm:\n");
-		mexPrintf(" %s\n", "--------------------------------------------------------------------------------");
-		mexPrintf(" %4s 1.) %s... ", "", "transfering data from host to device");
+	// print status
+	if( verbosity > 1 )
+	{
+		mexPrintf( "done! (%.3f ms)\n", time_dft );
+		// flush cache
+		mexEvalString( "drawnow;" );
+	}
 
-		// create events for time-measurement
-		checkCudaRTErrors( cudaEventCreate( &start ) );
-		checkCudaRTErrors( cudaEventCreate( &stop ) );
+	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	// 6.) copy addresses of __device__ window functions to host
+	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	// 11.) window function for the receive apodization
+	t_window_ptr h_windows[ N_WINDOWS ];    // host-side function pointers to __device__ window functions
+	checkCudaRTErrors( cudaMemcpyFromSymbol( &h_windows, d_windows, N_WINDOWS * sizeof( t_window_ptr ) ) );
 
-		// place start event into the default stream
-		checkCudaRTErrors( cudaEventRecord( start, 0 ) );
+	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	// 7.) compute DAS image on GPU
+	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	// 	mexPrintf(" %4s 3.) %s... ", "", "computing DAS image on GPU");
+	float time_kernel = -1.0f;              // elapsed time for kernel execution (ms)
+	dim3 threadsPerBlock(N_THREADS_X, N_THREADS_Y);  /* use max number of threads per block for additions*/
+	dim3 numBlocks(N_blocks_x, N_blocks_z);
 
-		// a) grid points
-		checkCudaRTErrors( cudaMemcpy( d_pos_lat_x_flt, pos_lat_x, size_bytes_positions_x, cudaMemcpyHostToDevice ) );
-		checkCudaRTErrors( cudaMemcpy( d_pos_lat_z_flt, pos_lat_z, size_bytes_positions_z, cudaMemcpyHostToDevice ) );
+	// place start event into the default stream
+	checkCudaRTErrors( cudaEventRecord( start, 0 ) );
 
-		// b) correctly pad RF data to allow in place transform
-		for( k_rx = 0; k_rx < N_el_rx; k_rx++ )
+	// TODO: kernel to compute TOFs; d_arguments: N_el_rx * N_positions_x * N_positions_z
+
+	// iterate rx channels
+	for( int k_rx = 0; k_rx < N_el_rx; k_rx++ )
+	{
+
+		// compute DAS image for current tx/rx configuration
+		if( F_number_constant )
 		{
-			checkCudaRTErrors( cudaMemcpy( data_RF_flt_gpu + k_rx * N_samples_dft * 2, &( data_RF[ k_rx * N_samples_t ] ), size_bytes_signal, cudaMemcpyHostToDevice ) );
+			das_F_number_constant<<<numBlocks, threadsPerBlock>>>( d_image, d_weights,
+																   ((cufftComplex *) d_data_RF) + k_rx * N_samples_dft,
+																   d_positions_x, d_positions_z, pos_rx_ctr_x[ k_rx ], d_pos_rx_lb_x, d_pos_rx_ub_x,
+																   f_number_values[ 0 ],
+																   h_windows[ index_window_rx ],
+																   argument_coefficient_dbl, N_blocks_Omega_bp, index_f_lb, index_f_ub,
+																   N_pos_lat_x, N_pos_lat_z, e_steering_x_dbl, e_steering_z_dbl, pos_tx_ctr_x_ref_dbl,
+																   argument_add_dbl,
+																   element_pitch_dbl, M_el_rx, N_el_rx );
 		}
-
-		// c) array geometry
-		checkCudaRTErrors( cudaMemcpy( d_pos_rx_ctr_x, pos_rx_ctr_x, size_bytes_positions_rx, cudaMemcpyHostToDevice ) );
-		checkCudaRTErrors( cudaMemcpy( d_pos_rx_lb_x, pos_rx_lb_x, size_bytes_positions_rx, cudaMemcpyHostToDevice ) );
-		checkCudaRTErrors( cudaMemcpy( d_pos_rx_ub_x, pos_rx_ub_x, size_bytes_positions_rx, cudaMemcpyHostToDevice ) );
-
-		// d) frequency-dependent F-number
-		checkCudaRTErrors( cudaMemcpy( d_f_number_values, f_number_values_flt, size_bytes_f_numbers, cudaMemcpyHostToDevice ) );
-
-		// place stop event into the default stream
-		checkCudaRTErrors( cudaEventRecord( stop, 0 ) );
-		checkCudaRTErrors( cudaEventSynchronize( stop ) );
-
-		// compute elapsed time
-		checkCudaRTErrors( cudaEventElapsedTime( &time_transfer_to_device, start, stop ) );
-
-		mexPrintf("done! (%.3f ms)\n", time_transfer_to_device);
-
-		// flush cache
-		mexEvalString( "drawnow;" );
-
-		//=====================================================================
-		// 2.) compute DFTs of data_RF along first MATLAB dimension; choose appropriate order; in place
-		//=====================================================================
-		mexPrintf(" %4s 2.) %s... ", "", "computing DFT");
-
-		// place start event into the default stream
-		checkCudaRTErrors( cudaEventRecord(start, 0) );
-
-		cufftHandle plan;
-
-		// create plan for DFT
-		checkCudaFFTErrors( cufftPlan1d( &plan, N_order_dft, CUFFT_R2C, cufft_batch_size ) );
-
-		// execute DFT plan
-		checkCudaFFTErrors( cufftExecR2C( plan, (cufftReal *) data_RF_flt_gpu, (cufftComplex *) data_RF_flt_gpu ) );
-
-		// destroy plan after execution
-		checkCudaFFTErrors( cufftDestroy( plan ) );
-
-		// place stop event into the default stream
-		checkCudaRTErrors( cudaEventRecord( stop, 0 ) );
-		checkCudaRTErrors( cudaEventSynchronize( stop ) );
-
-		// compute elapsed time
-		checkCudaRTErrors( cudaEventElapsedTime( &time_dft, start, stop ) );
-
-		mexPrintf("done! (%.3f ms)\n", time_dft);
-
-		// flush cache
-		mexEvalString( "drawnow;" );
-
-		//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-		// 3.) copy addresses of __device__ window functions to host
-		//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-		checkCudaRTErrors( cudaMemcpyFromSymbol( &h_windows, d_windows, N_WINDOWS * sizeof( t_window_ptr ) ) );
-
-		//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-		// 4.) compute DAS image on GPU
-		//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-		mexPrintf(" %4s 3.) %s... ", "", "computing DAS image on GPU");
-
-		dim3 threadsPerBlock(N_THREADS_X, N_THREADS_Y);  /* use max number of threads per block for additions*/
-		dim3 numBlocks(N_blocks_x, N_blocks_z);
-
-		// place start event into the default stream
-		checkCudaRTErrors( cudaEventRecord( start, 0 ) );
-
-		// iterate rx channels
-		for( k_rx = 0; k_rx < N_el_rx; k_rx++ )
+		else
 		{
-
-			// compute DAS image for current tx/rx configuration
-			if( F_number_constant )
+			if( index_window_f == 0)
 			{
-				das_F_number_constant<<<numBlocks, threadsPerBlock>>>( d_image_flt_cpx, d_weights,
-																	   ((cufftComplex *) data_RF_flt_gpu) + k_rx * N_samples_dft,
-																	   d_pos_lat_x_flt, d_pos_lat_z_flt,
-																	   d_pos_rx_ctr_x, d_pos_rx_lb_x, d_pos_rx_ub_x,
-																	   ( t_float_gpu ) f_number_values_dbl[ 0 ],
-																	   h_windows[ index_window_rx ],
-																	   argument_factor_flt, N_blocks_Omega_bp, index_f_lb, index_f_ub,
-																	   N_pos_lat_x, N_pos_lat_z, cos_theta_incident_flt, sin_theta_incident_flt, pos_tx_ctr_x_ref_flt,
-																	   N_samples_shift_add_flt, f_s_over_c_0_flt, k_rx,
-																	   ( t_float_gpu ) element_pitch_dbl, ( t_float_gpu ) M_el_rx, N_el_rx );
+				// boxcar window along bandwidth
+				das_F_number_frequency_dependent<<<numBlocks, threadsPerBlock>>>( d_image,
+																				  ((cufftComplex *) d_data_RF) + k_rx * N_samples_dft,
+																				  d_positions_x, d_positions_z,
+																				  d_pos_rx_ctr_x, d_pos_rx_lb_x, d_pos_rx_ub_x,
+																				  d_f_number_values,
+																				  h_windows[ index_window_rx ],
+																				  argument_coefficient_dbl, N_blocks_Omega_bp, index_f_lb, index_f_ub,
+																				  N_pos_lat_x, N_pos_lat_z, e_steering_x_dbl, e_steering_z_dbl, pos_tx_ctr_x_ref_dbl,
+																				  argument_add_dbl, k_rx,
+																				  element_pitch_dbl, M_el_rx, N_el_rx );
 			}
 			else
 			{
-				if( index_window_f == 0)
-				{
-					// boxcar window
-					das_F_number_frequency_dependent<<<numBlocks, threadsPerBlock>>>( d_image_flt_cpx,
-																					  ((cufftComplex *) data_RF_flt_gpu) + k_rx * N_samples_dft,
-																					  d_pos_lat_x_flt, d_pos_lat_z_flt,
-																					  d_pos_rx_ctr_x, d_pos_rx_lb_x, d_pos_rx_ub_x,
-																					  d_f_number_values,
-																					  h_windows[ index_window_rx ],
-																					  argument_factor_flt, N_blocks_Omega_bp, index_f_lb, index_f_ub,
-																					  N_pos_lat_x, N_pos_lat_z, cos_theta_incident_flt, sin_theta_incident_flt, pos_tx_ctr_x_ref_flt,
-																					  N_samples_shift_add_flt, f_s_over_c_0_flt, k_rx,
-																					  ( t_float_gpu ) element_pitch_dbl, ( t_float_gpu ) M_el_rx, N_el_rx );
-				}
-				else
-				{
-					// other window
-					das_F_number_frequency_dependent_window<<<numBlocks, threadsPerBlock>>>( d_image_flt_cpx,
-																							 ((cufftComplex *) data_RF_flt_gpu) + k_rx * N_samples_dft,
-																							 d_pos_lat_x_flt, d_pos_lat_z_flt,
-																							 d_pos_rx_ctr_x, d_pos_rx_lb_x, d_pos_rx_ub_x,
-																							 d_f_number_values,
-																							 h_windows[ index_window_rx ], h_windows[ index_window_f ],
-																							 argument_factor_flt, N_blocks_Omega_bp, index_f_lb, N_samples_dft_bp,
-																							 N_pos_lat_x, N_pos_lat_z, cos_theta_incident_flt, sin_theta_incident_flt, pos_tx_ctr_x_ref_flt,
-																							 N_samples_shift_add_flt, f_s_over_c_0_flt, k_rx,
-																							 ( t_float_gpu ) element_pitch_dbl, ( t_float_gpu ) M_el_rx, N_el_rx );
-				}
-			} // if( F_number_constant )
+				// // other window
+				// das_F_number_frequency_dependent_window<<<numBlocks, threadsPerBlock>>>( d_image,
+				// 																		 ((cufftComplex *) d_data_RF) + k_rx * N_samples_dft,
+				// 																		 d_positions_x, d_positions_z,
+				// 																		 d_pos_rx_ctr_x, d_pos_rx_lb_x, d_pos_rx_ub_x,
+				// 																		 d_f_number_values,
+				// 																		 h_windows[ index_window_rx ], h_windows[ index_window_f ],
+				// 																		 argument_coefficient_dbl, N_blocks_Omega_bp, index_f_lb, N_samples_dft_bp,
+				// 																		 N_pos_lat_x, N_pos_lat_z, e_steering_x, e_steering_z, pos_tx_ctr_x_ref_dbl,
+				// 																		 argument_add_dbl, f_s_over_c_0_dbl, k_rx,
+				// 																		 ( t_float_gpu ) element_pitch_dbl, ( t_float_gpu ) M_el_rx, N_el_rx );
+			} // if( index_window_f == 0)
+		} // if( F_number_constant )
 
-		} // for( k_rx = 0; k_rx < N_el_rx; k_rx++ )
+	} // for( k_rx = 0; k_rx < N_el_rx; k_rx++ )
 
-		// place stop event into the default stream
-		checkCudaRTErrors( cudaEventRecord( stop, 0 ) );
-		checkCudaRTErrors( cudaEventSynchronize( stop ) );
+	// place stop event into the default stream
+	checkCudaRTErrors( cudaEventRecord( stop, 0 ) );
+	checkCudaRTErrors( cudaEventSynchronize( stop ) );
 
-		// compute elapsed time
-		checkCudaRTErrors( cudaEventElapsedTime( &time_kernel, start, stop ) );
+	// compute elapsed time
+	checkCudaRTErrors( cudaEventElapsedTime( &time_kernel, start, stop ) );
 
-		mexPrintf("done! (%.3f ms)\n", time_kernel);
+	// mexPrintf("done! (%.3f ms)\n", time_kernel);
 
-		// flush cache
-		mexEvalString( "drawnow;" );
+	// flush cache
+	mexEvalString( "drawnow;" );
 
-		//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-		// 5.) copy DAS image and weights to host
-		//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-		// allocate memory for results
-		image_DAS_flt_cpx = (cufftComplex *) mxMalloc( size_bytes_DAS_image_RF_complex );
+	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	// 8.) copy DAS image and weights to host
+	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-		mexPrintf(" %4s 4.) %s... ", "", "transfering data to host");
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// 1.) allocate memory in the MATLAB workspace for the output
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// complex-valued DAS image
+	plhs[ 0 ] = mxCreateNumericMatrix( N_pos_lat_z, N_pos_lat_x, mxSINGLE_CLASS, mxCOMPLEX );
+	float* const image_DAS_real = (float*) mxGetData( plhs[ 0 ] );
+	float* const image_DAS_imag = (float*) mxGetImagData( plhs[ 0 ] );
 
-		// place start event into the default stream
-		checkCudaRTErrors( cudaEventRecord( start, 0 ) );
+	// sum of apodization weights for each grid point (host)
+	plhs[ 1 ] = mxCreateNumericMatrix( N_pos_lat_z, N_pos_lat_x, mxSINGLE_CLASS, mxREAL );
+	t_float_gpu* const h_weights = (t_float_gpu*) mxGetData( plhs[ 1 ] );
 
-		// copy results to host
-		checkCudaRTErrors( cudaMemcpy( image_DAS_flt_cpx, d_image_flt_cpx, size_bytes_DAS_image_RF_complex, cudaMemcpyDeviceToHost ) );
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// 2.) copy data from device to host
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// a) allocate memory for results
+	cufftComplex* image_DAS_flt_cpx = (cufftComplex *) mxMalloc( size_bytes_DAS_image_RF_complex );
 
-		// copy weights to host
-		if( F_number_constant )
+	// 	mexPrintf(" %4s 4.) %s... ", "", "transfering data to host");
+	// place start event into the default stream
+	checkCudaRTErrors( cudaEventRecord( start, 0 ) );
+
+	// b) copy results to host
+	checkCudaRTErrors( cudaMemcpy( image_DAS_flt_cpx, d_image, size_bytes_DAS_image_RF_complex, cudaMemcpyDeviceToHost ) );
+
+	// c) copy weights to host
+	if( F_number_constant )
+	{
+		checkCudaRTErrors( cudaMemcpy( h_weights, d_weights, size_bytes_weights, cudaMemcpyDeviceToHost ) );
+	}
+
+	// place stop event into the default stream
+	checkCudaRTErrors( cudaEventRecord( stop, 0 ) );
+	checkCudaRTErrors( cudaEventSynchronize( stop ) );
+
+	// compute elapsed time for memory transfer device to host (ms)
+	float time_transfer_to_host = -1.0f;
+	checkCudaRTErrors( cudaEventElapsedTime( &time_transfer_to_host, start, stop ) );
+
+	// 	mexPrintf("done! (%.3f ms)\n", time_transfer_to_host);
+
+	// d) extract complex-valued pixels and divide by weights (if appropriate)
+	for( int l_z = 0; l_z < N_pos_lat_z; l_z++ )
+	{
+		for( int l_x = 0; l_x < N_pos_lat_x; l_x++ )
 		{
-			checkCudaRTErrors( cudaMemcpy( h_weights, d_weights, size_bytes_weights, cudaMemcpyDeviceToHost ) );
-		}
 
-		// extract complex-valued pixels and divide by weights (if appropriate)
-		for( l_z = 0; l_z < N_pos_lat_z; l_z++ )
-		{
-			for( l_x = 0; l_x < N_pos_lat_x; l_x++ )
+			//
+			image_DAS_real[ l_x * N_pos_lat_z + l_z ] = image_DAS_flt_cpx[ l_x * N_pos_lat_z + l_z ].x;
+			image_DAS_imag[ l_x * N_pos_lat_z + l_z ] = image_DAS_flt_cpx[ l_x * N_pos_lat_z + l_z ].y;
+
+			// normalize pixels for constant F-number
+			if( F_number_constant )
 			{
-
-				image_DAS_real[ l_x * N_pos_lat_z + l_z ] = image_DAS_flt_cpx[ l_x * N_pos_lat_z + l_z ].x;
-				image_DAS_imag[ l_x * N_pos_lat_z + l_z ] = image_DAS_flt_cpx[ l_x * N_pos_lat_z + l_z ].y;
-
-				// normalize pixels for constant F-number
-				if( F_number_constant )
+				// check how many rx channels contributed to current pixel
+				if( h_weights[ l_x * N_pos_lat_z + l_z ] > 0 )
 				{
-					// check how many rx channels contributed to current pixel
-					if( h_weights[ l_x * N_pos_lat_z + l_z ] > 0 )
-					{
-						image_DAS_real[ l_x * N_pos_lat_z + l_z ] = image_DAS_real[ l_x * N_pos_lat_z + l_z ] / ( N_order_dft * h_weights[ l_x * N_pos_lat_z + l_z ] );
-						image_DAS_imag[ l_x * N_pos_lat_z + l_z ] = image_DAS_imag[ l_x * N_pos_lat_z + l_z ] / ( N_order_dft * h_weights[ l_x * N_pos_lat_z + l_z ] );
-					}
-				} // if( F_number_constant )
-
+					// image_DAS_real[ l_x * N_pos_lat_z + l_z ] = image_DAS_real[ l_x * N_pos_lat_z + l_z ] / ( N_order_dft * h_weights[ l_x * N_pos_lat_z + l_z ] );
+					// image_DAS_imag[ l_x * N_pos_lat_z + l_z ] = image_DAS_imag[ l_x * N_pos_lat_z + l_z ] / ( N_order_dft * h_weights[ l_x * N_pos_lat_z + l_z ] );
+					image_DAS_real[ l_x * N_pos_lat_z + l_z ] = image_DAS_real[ l_x * N_pos_lat_z + l_z ] / ( h_weights[ l_x * N_pos_lat_z + l_z ] );
+					image_DAS_imag[ l_x * N_pos_lat_z + l_z ] = image_DAS_imag[ l_x * N_pos_lat_z + l_z ] / ( h_weights[ l_x * N_pos_lat_z + l_z ] );
+				}
 				// else
 				// {
 				// 	// no rx channel contributed to current pixel
 				// 	image_DAS_real[ l_x * N_pos_lat_z + l_z ] = 0;
 				// 	image_DAS_imag[ l_x * N_pos_lat_z + l_z ] = 0;
 				// }
-			} // for( l_x = 0; l_x < N_pos_lat_x; l_x++ )
-		} // for( l_z = 0; l_z < N_pos_lat_z; l_z++ )
+			} // if( F_number_constant )
 
-		// place stop event into the default stream
-		checkCudaRTErrors( cudaEventRecord( stop, 0 ) );
-		checkCudaRTErrors( cudaEventSynchronize( stop ) );
+		} // for( int l_x = 0; l_x < N_pos_lat_x; l_x++ )
+	} // for( int l_z = 0; l_z < N_pos_lat_z; l_z++ )
 
-		// compute elapsed time
-		checkCudaRTErrors( cudaEventElapsedTime( &time_transfer_to_host, start, stop ) );
+	// mxDestroyArray( lhs[ 0 ] );
 
-		mexPrintf("done! (%.3f ms)\n", time_transfer_to_host);
+	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	// 9.) print performance statistics
+	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	// total elapsed time (ms)
+	const float time_total = time_transfer_to_device + time_dft + time_kernel + time_transfer_to_host;
 
-		// total elapsed time
-		time_total = time_transfer_to_device + time_dft + time_kernel + time_transfer_to_host;
-
-		//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-		// 6.) print performance statistics
-		//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+	if( verbosity > 0 )
+	{
 		mexPrintf(" %s\n", "--------------------------------------------------------------------------------");
 		mexPrintf(" performance statistics:\n");
 		mexPrintf(" %s\n", "--------------------------------------------------------------------------------");
@@ -1146,37 +1184,39 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 		mexPrintf("%4s %-34s: % 10.3f ms (%6.2f %%)  %8d\n", "", "memory transfer: device to host", time_transfer_to_host, time_transfer_to_host / time_total * 100, 1);
 		mexPrintf("%4s %-34s  %-24s  %-8s\n", "", "----------------------------------", "------------------------", "--------");
 		mexPrintf("%4s %-34s: % 10.3f ms (%6.2f %%)\n", "", "total", time_total, 100.00f);
-
-		//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-		// 7.) clean up memory
-		//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-		//------------------------------------------------------------------------------------------------------------------------------------------
-		// a) device memory
-		//------------------------------------------------------------------------------------------------------------------------------------------
-		checkCudaRTErrors( cudaFree( d_f_number_values ) );
-		checkCudaRTErrors( cudaFree( data_RF_flt_gpu ) );
-		checkCudaRTErrors( cudaFree( d_image_flt_cpx ) );
-		checkCudaRTErrors( cudaFree( d_weights ) );
-		checkCudaRTErrors( cudaFree( d_pos_lat_x_flt ) );
-		checkCudaRTErrors( cudaFree( d_pos_lat_z_flt ) );
-		checkCudaRTErrors( cudaFree( d_pos_rx_ctr_x ) );
-		checkCudaRTErrors( cudaFree( d_pos_rx_lb_x ) );
-		checkCudaRTErrors( cudaFree( d_pos_rx_ub_x ) );
-		checkCudaRTErrors( cudaEventDestroy( start ) );
-		checkCudaRTErrors( cudaEventDestroy( stop ) );
-
-		//------------------------------------------------------------------------------------------------------------------------------------------
-		// b) host memory
-		//------------------------------------------------------------------------------------------------------------------------------------------
-		mxFree( pos_lat_x );
-		mxFree( pos_lat_z );
-		mxFree( data_RF );
-		mxFree( f_number_values_flt );
-		mxFree( pos_rx_ctr_x );
-		mxFree( pos_rx_lb_x  );
-		mxFree( pos_rx_ub_x  );
-		mxFree( image_DAS_flt_cpx );
 	}
+
+	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	// 10.) clean up memory
+	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// a) device memory
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	checkCudaRTErrors( cudaFree( d_positions_x ) );
+	checkCudaRTErrors( cudaFree( d_positions_z ) );
+	checkCudaRTErrors( cudaFree( d_data_RF ) );
+	checkCudaRTErrors( cudaFree( d_pos_rx_ctr_x ) );
+	checkCudaRTErrors( cudaFree( d_pos_rx_lb_x ) );
+	checkCudaRTErrors( cudaFree( d_pos_rx_ub_x ) );
+	checkCudaRTErrors( cudaFree( d_f_number_values ) );
+	checkCudaRTErrors( cudaFree( d_image ) );
+	checkCudaRTErrors( cudaFree( d_weights ) );
+
+	checkCudaRTErrors( cudaEventDestroy( start ) );
+	checkCudaRTErrors( cudaEventDestroy( stop ) );
+
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// b) host memory
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// checkCudaErrors( cudaFreeHost( buffer ) );
+	mxFree( f_number_values );
+	mxFree( data_RF );
+	mxFree( positions_z );
+	mxFree( positions_x );
+	mxFree( pos_rx_ub_x  );
+	mxFree( pos_rx_lb_x  );
+	mxFree( pos_rx_ctr_x );
+	mxFree( image_DAS_flt_cpx );
 
 } // void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )

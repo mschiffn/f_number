@@ -76,7 +76,7 @@ function [ image, F_number_values, signal ] = das_pw( positions_x, positions_z, 
 % -------------------------------------------------------------------------
 %   author: Martin F. Schiffner
 %   date: 2021-04-17
-%   modified: 2023-11-15
+%   modified: 2023-12-08
 
 %--------------------------------------------------------------------------
 % 0.) check arguments
@@ -294,9 +294,8 @@ end
 %--------------------------------------------------------------------------
 % check platform
 if isa( platform, 'platforms.gpu' )
-    % execute GPU code string( normalization.window )
-    % TODO: fix redefinition of steering_angle
-    image = cuda.gpu_bf_das_pw_rf( positions_x, positions_z, data_RF, f_s, steering_angle + pi/2, element_width, element_pitch, f_bounds( 1 ), f_bounds( 2 ), c_0, index_t0, window, F_number, normalization, platform.index );
+    % execute GPU code
+    image = cuda.gpu_bf_das_pw_rf( positions_x, positions_z, data_RF, f_s, steering_angle, element_width, element_pitch, c_0, f_bounds, index_t0, window, F_number, normalization, platform.index );
     return
 end
 
@@ -321,11 +320,11 @@ positions_lbs_x = positions_ctr_x - element_width_over_two;
 positions_ubs_x = positions_ctr_x + element_width_over_two;
 
 % propagation direction ( ← = pi/2, ↓ = 0, → = -pi/2 )
-e_theta_x = -sin( steering_angle );
-e_theta_z = cos( steering_angle );
+e_steering_x = -sin( steering_angle );
+e_steering_z = cos( steering_angle );
 
 % reference position
-position_ctr_x_ref = sign( e_theta_x ) * positions_ctr_x( 1 );
+position_ctr_x_ref = sign( e_steering_x ) * positions_ctr_x( 1 );
 
 % lateral distances [ N_pos_x, N_elements ]
 dist_lateral = positions_ctr_x - positions_x.';
@@ -334,7 +333,7 @@ dist_lateral = positions_ctr_x - positions_x.';
 indicator_left = dist_lateral < 0;
 
 % incident wave travel times
-t_in_plus_shift = ( e_theta_x * ( positions_x - position_ctr_x_ref ) + e_theta_z * positions_z.' ) / c_0 + index_t0 / f_s;
+t_in_plus_shift = ( e_steering_x * ( positions_x - position_ctr_x_ref ) + e_steering_z * positions_z.' ) / c_0 + index_t0 / f_s;
 
 % scattered wave travel times
 t_sc_lateral_squared = ( dist_lateral / c_0 ).^2;
@@ -342,6 +341,7 @@ t_sc_axial_squared = ( positions_z / c_0 ).^2;
 
 % maximum relative time shift in the electronic focusing ( zero padding in DFT )
 N_samples_t_pad = ceil( ( sqrt( diff( positions_ctr_x( [ 1, end ] ) )^2 + positions_z( 1 )^2 ) - positions_z( 1 ) ) * f_s / c_0 );
+% TODO: pad zeros if RF data is too short!
 
 %--------------------------------------------------------------------------
 % 3.) create frequency axis
