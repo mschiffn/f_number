@@ -19,7 +19,7 @@
  % image = gpu_bf_das_pw_rf( positions_x, positions_z, data_RF, f_s, steering_angle, element_width, element_pitch, c_0 );
  %
  % maximal:
- % [ image, F_number_values ] = gpu_bf_das_pw_rf( positions_x, positions_z, data_RF, f_s, steering_angle, element_width, element_pitch, c_0, f_bounds, index_t0, window, F_number, normalization, index_gpu );
+ % [ image, weights ] = gpu_bf_das_pw_rf( positions_x, positions_z, data_RF, f_s, steering_angle, element_width, element_pitch, c_0, f_bounds, index_t0, window, F_number, normalization, index_gpu );
  %
  % -------------------------------------------------------------------------
  % INPUTS:
@@ -47,27 +47,31 @@
  % OUTPUTS:
  % -------------------------------------------------------------------------
  %  00.) image:                 complex-valued DAS image
- %  01.) weights:               value of the F-number for each frequency
+ %  01.) weights:               weights for each voxel
  %
  % -------------------------------------------------------------------------
  % ABOUT:
  % -------------------------------------------------------------------------
  % author: Martin Schiffner
  % date: 2010-12-17
- % modified: 2023-12-14
+ % modified: 2023-12-23
  % All rights reserved!
  %
  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
-// TODO: compute order of DFT!
+// TODO: parameter of Tukey window
+
 // __device__ t_float_gpu distance_pw( t_float_gpu pos_focus_x, t_float_gpu pos_focus_z, t_float_gpu pos_rx_ctr_x, t_float_gpu e_steering_x, t_float_gpu e_steering_z )
 // {
 
 // }
 
+// CUDA, cuFFT, and cuBLAS
 #include <cuda.h>
 #include <cufft.h>
 #include <math.h>
+#include <cublas_v2.h>
+
 #include "gpu_bf_das_pw_rf.cuh"
 
 // window functions
@@ -75,6 +79,9 @@
 
 // error handling
 #include "gpu_bf_error_handling.cu"
+
+// helper functions
+#include "gpu_bf_helper_functions.cu"
 
 #ifdef _CHAR16T
 #define CHAR16_T
@@ -86,130 +93,15 @@
 #define N_THREADS_PER_BLOCK 64
 
 #define REVISION "1.2"
-#define DATE "2023-12-14"
+#define DATE "2023-12-23"
 #define BYTES_PER_MEBIBYTE 1048576
 #define BYTES_PER_KIBIBYTE 1024
 
 // kernels
-#include "das_pw_kernel_constant.cu"						// fixed F-number
-#include "das_pw_kernel_frequency_dependent.cu"				// frequency-dependent F-number, boxcar normalization
-#include "das_pw_kernel_frequency_dependent_window.cu"		// frequency-dependent F-number, window-based normalization
-
-// workaround to check MATLAB classes
-bool isa( const mxArray* object, const char* type )
-{
-	//Create LHS/RHS arrays for calling MATLAB
-	mxArray* lhs[ 1 ];
-	mxArray* rhs[ 2 ];
-	//Return value
-	bool retVal;
-	//Populate Inputs to MATLAB isa
-	rhs[ 0 ] = mxDuplicateArray( object );	// make deep copy of object to avoid problems w/ const modifier
-	rhs[ 1 ] = mxCreateString( type );
-	//Call the MATLAB isa function
-	mexCallMATLAB( 1, lhs, 2, rhs, "isa" );
-	//Extract result
-	retVal = mxIsLogicalScalarTrue( lhs[ 0 ] );
-	//Cleanup
-	mxDestroyArray( lhs[ 0 ] );
-	mxDestroyArray( rhs[ 0 ] );
-	mxDestroyArray( rhs[ 1 ] );
-	//Done
-	return retVal;
-}
-
-// compute F-numbers
-double* compute_values( const mxArray* f_number, mxArray* element_pitch_norm )
-{
-	mxArray* lhs[ 1 ];
-	mxArray* rhs[ 2 ];
-	rhs[ 0 ] = mxDuplicateArray( f_number );	// make deep copy of F-number to avoid problems w/ const modifier
-	rhs[ 1 ] = element_pitch_norm;
-
-	// call method compute_values in MATLAB
-	mexCallMATLAB( 1, lhs, 2, rhs, "compute_values" );
-
-	// clean up
-	mxDestroyArray( rhs[ 0 ] );
-	mxDestroyArray( rhs[ 1 ] );
-
-	// get values
-	return ( double * ) mxGetData( lhs[ 0 ] );
-}
-
-// map MATLAB window classes to ids
-int get_window_id( const mxArray* window )
-{
-
-	if( mxIsClass( window, "windows.boxcar" ) )
-	{
-		return 0;
-	}
-	else if( mxIsClass( window, "windows.hann" ) )
-	{
-		return 1;
-	}
-	else if( mxIsClass( window, "windows.tukey" ) )
-	{
-		// ensure existence of property fraction_cosine
-		if( mxGetProperty( window, 0, "fraction_cosine" ) != NULL )
-		{
-			// read property fraction_cosine
-			if( *( ( double * ) mxGetData( mxGetProperty( window, 0, "fraction_cosine" ) ) ) == 0.2 )
-			{
-				return 2;
-			}
-		}
-	}
-	else if( mxIsClass( window, "windows.triangular" ) )
-	{
-		return 4;
-	}
-
-	return -1;
-
-} // int get_window_id( const mxArray* window )
-
-// convert object to string
-int string( const mxArray* object, char* string, mwSize strlen )
-{
-	// if( !mxChar( object ) )
-	// local variables
-	mxArray* lhs_1;
-	mxArray* lhs_2;
-	mxArray* rhs_1;
-	rhs_1 = mxDuplicateArray( object );	// make deep copy of F-number to avoid problems w/ const modifier
-
-	// call method string in MATLAB
-	mexCallMATLAB( 1, &lhs_1, 1, &rhs_1, "string" );
-
-	// call method char in MATLAB
-	mexCallMATLAB( 1, &lhs_2, 1, &lhs_1, "char" );
-
-	// clean up
-	mxDestroyArray( rhs_1 );
-	mxDestroyArray( lhs_1 );
-
-	// check for mxChar array
-	// if( !mxIsChar( lhs_2 ) ) return 1;
-
-	// mxChar array to C-style string
-	return mxGetString( lhs_2, string, strlen );
-
-}
-
-  //Matlab's String class is encapsulated,
-  //use Matlab call to convert it to char array
-//   mxArray *string_class[1], *char_array[1];
-//   string_class[0] = pr;
-//   mexCallMATLAB(1, char_array, 1, string_class, "char");
-  
-  //Parse the char array to create an std::string
-//   int buflen = mxGetN(char_array[0])*sizeof(mxChar)+1;
-//   char* buf = new char[buflen];
-//   mxGetString(char_array[0],buf,buflen);
-//   data = std::string(buf);
-//   delete buf;
+#include "das_kernel_distances_pw.cu"			// propagation distances of steered PW
+#include "das_kernel_f_number_constant.cu"		// fixed F-number
+#include "das_kernel_phase_shifts.cu"			// complex exponentials
+#include "das_kernel_normalization.cu"			// normalization of the image
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // MEX gateway function
@@ -228,14 +120,14 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	if( N_devices < 1 ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:NoCUDADevices", "Could not find any CUDA-enabled devices!" );
 
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	// 1.) check and assign inputs
+	// 1.) check and assign required inputs
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	// check for correct number of input arguments
-	if( nrhs < 8 ) mexErrMsgIdAndTxt("gpu_bf_das_pw_rf:nrhs", "At least 8 inputs are required.");
-	if( nrhs > 15 ) mexErrMsgIdAndTxt("gpu_bf_das_pw_rf:nrhs", "At most 15 inputs are allowed.");
+	if( nrhs < 8 ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:nrhs", "At least 8 inputs are required." );
+	if( nrhs > 15 ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:nrhs", "At most 15 inputs are allowed." );
 
 	// check for correct number of output arguments
-	if( nlhs > 1 ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:nlhs", "Only one output is allowed.");
+	if( nlhs > 2 ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:nlhs", "At most 2 outputs are allowed." );
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// 0.) lateral voxel positions (m)
@@ -250,7 +142,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	const double* const positions_x_dbl = ( double * ) mxGetData( prhs[ 0 ] );
 
 	// c) number of positions on x-axis
-	const int N_pos_lat_x = mxGetN( prhs[ 0 ] );
+	const int N_positions_x = mxGetN( prhs[ 0 ] );
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// 1.) axial voxel positions (m)
@@ -265,7 +157,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	const double* const positions_z_dbl = ( double * ) mxGetData( prhs[ 1 ] );
 
 	// c) number of positions on z-axis
-	const int N_pos_lat_z = mxGetN( prhs[ 1 ] );
+	const int N_positions_z = mxGetN( prhs[ 1 ] );
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// 2.) RF data (2d array; 1st dimension: time, 2nd dimension: array element index)
@@ -369,6 +261,10 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidSoundSpeed", "Average speed of sound must be positive and finite!" );
 	}
 
+	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	// 2.) initialize and assign optional inputs
+	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// 8.) frequency bounds (Hz) (1d array; 1st element: lower frequency bound, 2nd element: upper frequency bound)
 	//------------------------------------------------------------------------------------------------------------------------------------------
@@ -449,47 +345,79 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// 11.) F-number
 	//------------------------------------------------------------------------------------------------------------------------------------------
-//TODO: create default F-number
+	// a) create default F-number
+	mxArray* angles_lb_deg_matlab = mxCreateDoubleScalar( 70.0 );
+	mxArray* F_numbers_ub_matlab = mxCreateDoubleScalar( 1.5 );
+	mxArray* distances_deg_matlab = mxCreateDoubleScalar( 10.0 );
+	mxArray* rhs[ 3 ] = { angles_lb_deg_matlab, F_numbers_ub_matlab, distances_deg_matlab };
+	mxArray* f_number_matlab = NULL;
+	mexCallMATLAB( 1, &f_number_matlab, 3, rhs, "f_numbers.grating.angle_lb" );
+	bool F_number_constant = false;
 
-	// a) ensure single object of class f_numbers.f_number
-	if( !( isa( prhs[ 11 ], "f_numbers.f_number" ) && mxIsScalar( prhs[ 11 ] ) ) )
+	// b) check specified value
+	if( nrhs >= 12 && !mxIsEmpty( prhs[ 11 ] ) )
 	{
-		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidFNumber", "F-number must be a single object of the class f_numbers.f_number!");
+		// ensure single object of class f_numbers.f_number
+		if( !( isa( prhs[ 11 ], "f_numbers.f_number" ) && mxIsScalar( prhs[ 11 ] ) ) )
+		{
+			mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidFNumber", "F-number must be a single object of the class f_numbers.f_number!");
+		}
+
+		// destroy default F-number
+		// mxDestroyArray( f_number_matlab );
+
+		// make deep copy of F-number to avoid problems w/ const modifier
+		f_number_matlab = mxDuplicateArray( prhs[ 11 ] );
 	}
 
-	// b) check if F-number is fixed
-	int F_number_constant = 0;	// indicates whether F-number is fixed
-	if( isa( prhs[ 11 ], "f_numbers.constant" ) )
+	// c) check if specified F-number is fixed
+	if( isa( f_number_matlab, "f_numbers.constant" ) )
 	{
-		F_number_constant = 1;
+		F_number_constant = true;
 	}
 
-	// c) name of F-number
+	// name of F-number
 	char f_number_name[ 128 ];
-	if( string( prhs[ 11 ], f_number_name, 128 * sizeof(char) ) ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidFNumber", "Error reading F-number name!" );
+	if( string( f_number_matlab, f_number_name, 128 * sizeof(char) ) )
+	{
+		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidFNumber", "Error reading F-number name!" );
+	}
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// 12.) normalization of the apodization weights
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// a) default value
+	// a) default values
+	bool normalization = true;
 	int index_window_f = 0;
+	char normalization_name[ 128 ] = { "on" };
 
-	// b) ensure scalar object of class normalizations.normalization
-	if( !( isa( prhs[ 12 ], "normalizations.normalization" ) && mxIsScalar( prhs[ 12 ] ) ) )
+	// b) check specified value
+	if( nrhs >= 13 && !mxIsEmpty( prhs[ 12 ] ) )
 	{
-		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidNormalization", "Normalization must be a single object of the class normalizations.normalization!");
+		// ensure scalar object of class normalizations.normalization
+		if( !( isa( prhs[ 12 ], "normalizations.normalization" ) && mxIsScalar( prhs[ 12 ] ) ) )
+		{
+			mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidNormalization", "Normalization must be a single object of the class normalizations.normalization!");
+		}
+
+		// name of normalization
+		if( string( prhs[ 12 ], normalization_name, 128 * sizeof(char) ) ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidNormalization", "Error reading normalization name!" );
+
+		// deactivate normalization
+		if( mxIsClass( prhs[ 12 ], "normalizations.off" ) ) normalization = false;
+
+		// map classes to window id
+		if( mxIsClass( prhs[ 12 ], "normalizations.windowed" ) )
+		{
+			index_window_f = get_window_id( mxGetProperty( prhs[ 12 ], 0, "window" ) );
+		}
 	}
 
-	// c) map classes to window id
-	if( mxIsClass( prhs[ 12 ], "normalizations.windowed" ) )
+	// c) check validity of window id
+	if( !( ( index_window_f >= 0 ) && ( index_window_f < N_WINDOWS ) ) )
 	{
-		index_window_f = get_window_id( mxGetProperty( prhs[ 12 ], 0, "window" ) );
+		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidFrequencyWindow", "Unknown frequency window function!" );
 	}
-
-	// d) check validity of window id
-	if( !( ( index_window_f >= 0 ) && ( index_window_f < N_WINDOWS ) ) ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidFrequencyWindow", "Unknown frequency window function!" );
-
-	mexPrintf( "index_window_f = %d\n", index_window_f );
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// 13.) index of the GPU
@@ -503,7 +431,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 		// ensure real-valued mxDOUBLE_CLASS with one element
 		if( !( mxIsDouble( prhs[ 13 ] ) && !mxIsComplex( prhs[ 13 ] ) && mxIsScalar( prhs[ 13 ] ) ) )
 		{
-			mexErrMsgIdAndTxt( "gpu_bf_saft:InvalidCUDADevice", "Device index must be a real-valued scalar of type double!" );
+			mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidCUDADevice", "Device index must be a real-valued scalar of type double!" );
 		}
 
 		// read device index
@@ -511,8 +439,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	}
 
 	// c) early exit if selected GPU does not exist
-	if( ( index_gpu < 0 ) || ( index_gpu >= N_devices ) ) mexErrMsgIdAndTxt( "gpu_bf_saft:InvalidCUDADevice", "Selected device does not exist!" );
-	// assertion:  index_gpu >= 0 && index_gpu < N_devices
+	if( !( ( index_gpu >= 0 ) || ( index_gpu < N_devices ) ) ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidCUDADevice", "Selected device does not exist!" );
 
 	// d) select device
 	checkCudaRTErrors( cudaSetDevice( index_gpu ) );
@@ -529,7 +456,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 		// ensure real-valued mxDOUBLE_CLASS with one element
 		if( !( mxIsDouble( prhs[ 14 ] ) && !mxIsComplex( prhs[ 14 ] ) && mxIsScalar( prhs[ 14 ] ) ) )
 		{
-			mexErrMsgIdAndTxt( "gpu_bf_saft:InvalidVerbosityLevel", "Verbosity level must be a real-valued scalar of type double!" );
+			mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidVerbosityLevel", "Verbosity level must be a real-valued scalar of type double!" );
 		}
 
 		// read verbosity level
@@ -537,23 +464,14 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	}
 
 	// c) early exit if selected verbosity level does not exist
-	if( ( verbosity < 0 ) || ( verbosity >= 4 ) ) mexErrMsgIdAndTxt( "gpu_bf_saft:InvalidVerbosityLevel", "Selected verbosity level does not exist!" );
+	if( ( verbosity < 0 ) || ( verbosity >= 4 ) ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidVerbosityLevel", "Selected verbosity level does not exist!" );
 
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	// 2.) compute dependent parameters and display status information
+	// 3.) compute dependent parameters and display status information
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// a) propagation direction of steered plane wave
-	//------------------------------------------------------------------------------------------------------------------------------------------
-	// x component of unit wave vector
-	const double e_steering_x_dbl = -sin( steering_angle_dbl );
-
-	// z component of unit wave vector
-	const double e_steering_z_dbl = cos( steering_angle_dbl );
-
-	//------------------------------------------------------------------------------------------------------------------------------------------
-	// b) array geometry
+	// a) array geometry
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// half-number of receive elements
 	const double M_el_rx = ( N_el_rx - 1.0 ) / 2.0;
@@ -571,17 +489,20 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	}
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// c) reference position
+	// b) propagation direction of steered plane wave and reference position
 	//------------------------------------------------------------------------------------------------------------------------------------------
+	// x component of unit wave vector
+	const double e_steering_x_dbl = -sin( steering_angle_dbl );
+
+	// z component of unit wave vector
+	const double e_steering_z_dbl = cos( steering_angle_dbl );
+
 	// set reference position for the incident steered plane wave
 	const double pos_tx_ctr_x_ref_dbl = ( e_steering_x_dbl >= 0 ) ? - M_el_rx * element_pitch_dbl : M_el_rx * element_pitch_dbl;
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// d) compute order of DFT; employ zero-padding to achieve odd order
+	// c) compute order of DFT; employ zero-padding to achieve odd order
 	//------------------------------------------------------------------------------------------------------------------------------------------
-// TODO: determine time duration of focused signal
-	// tof_min, tof_max, t_lb, t_ub for all emissions
-
 	// maximum relative time shift in the electronic focusing ( zero padding in DFT )
 	const int N_samples_t_pad = ceil( ( sqrt( ( pos_rx_ctr_x[ N_el_rx - 1 ] - pos_rx_ctr_x[ 0 ] ) * ( pos_rx_ctr_x[ N_el_rx - 1 ] - pos_rx_ctr_x[ 0 ] ) + positions_z_dbl[ 1 ] * positions_z_dbl[ 1 ] ) - positions_z_dbl[ 1 ] ) * f_s_dbl / c_0_dbl );
 
@@ -599,7 +520,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	const double argument_add_dbl = 2 * M_PI * index_t0_dbl / N_order_dft;
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// e) compute parameters of bandpass filter
+	// d) compute parameters of bandpass filter
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// lower frequency index in the RF signals
 	const int index_f_lb = ceil( f_lb_dbl * N_order_dft / f_s_dbl );
@@ -607,51 +528,54 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	// upper frequency index in the RF signals
 	const int index_f_ub = floor( f_ub_dbl * N_order_dft / f_s_dbl );
 
-	// check validity of index_f_lb and index_f_ub
-	if( ( index_f_lb > index_f_ub ) || ( index_f_lb <= 0 ) || ( index_f_ub >= N_samples_dft ) )
+	// check validity of frequency indices
+	if( !( ( index_f_lb > 0 ) && ( index_f_lb <= index_f_ub ) && ( index_f_ub < N_samples_dft ) ) )
 	{
-		mexPrintf("error: invalid frequency boundaries f_lb and f_ub!");
-		return;
+		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidFrequencyBounds", "Frequency bounds lead to invalid indices!" );
 	}
-	// assertion: index_f_lb <= index_f_ub, index_f_lb > 0, index_f_ub < N_samples_dft
 
 	// number of non-redundant samples of DFT of order N_order_dft after bandpass filter
-	const int N_samples_dft_bp  = index_f_ub - index_f_lb + 1; // computed number of non-redundant samples of DFT of order N_order_dft after bandpass filter
+	const int N_samples_dft_bp  = index_f_ub - index_f_lb + 1;
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// f) compute frequency-dependent F-number [ in MATLAB ]
+	// e) compute frequency-dependent F-number [ in MATLAB ]
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// create normalized element pitches in MATLAB workspace
 	mxArray* element_pitch_norm_matlab = mxCreateDoubleMatrix( N_samples_dft_bp, 1, mxREAL );
 
-		// frequency axis
-		double* element_pitch_norm_dbl = (double *) mxGetData( element_pitch_norm_matlab );
+	// frequency axis
+	double* element_pitch_norm_dbl = (double *) mxGetData( element_pitch_norm_matlab );
 
-		// iterate frequencies
-		for( int index_f = 0; index_f < N_samples_dft_bp; index_f++ )
-		{
+	// iterate frequencies
+	for( int index_f = 0; index_f < N_samples_dft_bp; index_f++ )
+	{
+		// normalized element pitch
+		element_pitch_norm_dbl[ index_f ] = element_pitch_dbl * ( index_f_lb + index_f ) * f_s_dbl / ( N_order_dft * c_0_dbl );
+	}
 
-			// normalized element pitch
-			element_pitch_norm_dbl[ index_f ] = element_pitch_dbl * ( index_f_lb + index_f ) * f_s_dbl / ( N_order_dft * c_0_dbl );
+	// compute values of the frequency-dependent F-number
+	const double* const f_number_values_dbl = compute_values( f_number_matlab, element_pitch_norm_matlab );
 
-		}
+	// destroy normalized element pitches in MATLAB workspace
+	// mxDestroyArray( element_pitch_norm_matlab );
+	// element_pitch_norm_dbl = NULL;
 
-		// compute values of the frequency-dependent F-number
-		const double* const f_number_values_dbl = compute_values( prhs[ 11 ], element_pitch_norm_matlab );
-	// }
+	// destroy F-number
+	// mxDestroyArray( f_number_matlab );
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// g) compute parallelization settings
+	// f) compute parallelization settings
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// number of blocks to process in parallel
-	const int N_blocks_x = ceil( ( (double) N_pos_lat_x ) / N_THREADS_X );
-	const int N_blocks_z = ceil( ( (double) N_pos_lat_z ) / N_THREADS_Y );
+	const int N_blocks_x = ceil( ( (double) N_positions_x ) / N_THREADS_X );
+	const int N_blocks_z = ceil( ( (double) N_positions_z ) / N_THREADS_Y );
+	const int N_blocks_rx = ceil( ( (double) N_el_rx ) / N_THREADS_PER_BLOCK );
 
 	// determine relevant range of frequency indices
 	const int N_blocks_Omega_bp = ceil( ((double) N_samples_dft_bp) / N_THREADS_PER_BLOCK );  // number of frequency blocks
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// h) print global status information
+	// g) print global status information
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	if( verbosity > 0 )
 	{
@@ -659,7 +583,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 		mexPrintf( " GPU BF Toolbox: DAS, steered PW, v.%s (%s), Status Information\n", REVISION, DATE );
 		mexPrintf( " (c) 2010-2023, M. F. Schiffner. All rights reserved.\n" );
 		mexPrintf( " %s\n", "================================================================================" );
-		mexPrintf( "  %-20s: % 5d x %-5d %5s", "lattice geometry", N_pos_lat_x, N_pos_lat_z, "" );
+		mexPrintf( "  %-20s: % 5d x %-5d %5s", "lattice geometry", N_positions_x, N_positions_z, "" );
 		mexPrintf( " %-22s: %-8d\n", "number of samples", N_samples_t );
 		mexPrintf( "  %-20s: %-11d %7s", "number rx channels", N_el_rx, "" );
 		mexPrintf( " %-22s: %5.1f MHz\n", "sampling rate", f_s_dbl / 1000000 );
@@ -672,14 +596,14 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 		mexPrintf( "  %-20s: %-6.2f %12s", "additional shift", index_t0_dbl, "" );
 		mexPrintf( " %-22s: %s (%d)\n", "window", window_rx_name, index_window_rx );
 		mexPrintf( "  %-20s: %s\n", "F-number", f_number_name );
-		mexPrintf( "  %-20s: %s\n", "normalization", "test" );
+		mexPrintf( "  %-20s: %s\n", "normalization", normalization_name );
 
 		//mexPrintf(" %-22s: %-6.2f um\n", "maximum delta_x", delta_x_max * 1e6);
 		//mexPrintf(" %-22s: %-6.2f um\n", "maximum delta_z", delta_z_max * 1e6);
 	}
 
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	// 3.) infer and display properties of selected device
+	// 4.) infer and display properties of selected device
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
@@ -736,23 +660,21 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	}
 
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	// 4.) allocate and initialize device memory / convert data to float and copy to the device
+	// 5.) allocate and initialize device memory / convert data to float and copy to the device
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	// size of conversion buffer: use maximum of
 		// a) d_positions_x:
-		//    sizeof( t_float_gpu ) * N_pos_lat_x
+		//    sizeof( t_float_gpu ) * N_positions_x
 		// b) d_positions_z:
-		//    sizeof( t_float_gpu ) * N_pos_lat_z;
+		//    sizeof( t_float_gpu ) * N_positions_z;
 		// c) d_data_RF:
 		//    sizeof( cufftComplex ) * N_samples_dft * N_el_rx
 		// d) d_pos_rx_ctr_x, d_pos_rx_lb_x, d_pos_rx_ub_x:
 		//    sizeof( t_float_gpu ) * N_el_rx
-		// e) d_f_number_values:
-		//    sizeof( float ) * N_samples_dft_bp
 		// f) d_image:
-		//    sizeof( cufftComplex ) * N_pos_lat_x * N_pos_lat_z
+		//    sizeof( cufftComplex ) * N_positions_x * N_positions_z
 		// g) d_weights:
-		//    sizeof( t_float_gpu ) * N_pos_lat_x * N_pos_lat_z
+		//    sizeof( t_float_gpu ) * N_positions_x * N_positions_z
 		//
 		// => c) > d)
 		// => f) > g)
@@ -768,33 +690,25 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	// t_float_gpu* buffer = NULL;
 	// checkCudaErrors( cudaHostAlloc( (void**) &buffer, size_bytes_buffer, cudaHostAllocDefault ) );
 
-	// 	// place start event into the default stream
-	// 	checkCudaRTErrors( cudaEventRecord( start, 0 ) );
-	
-	// 	// place stop event into the default stream
-	// 	checkCudaRTErrors( cudaEventRecord( stop, 0 ) );
-	// 	checkCudaRTErrors( cudaEventSynchronize( stop ) );
+	// create events for time-measurement
+	cudaEvent_t start, stop;
+	checkCudaRTErrors( cudaEventCreate( &start ) );
+	checkCudaRTErrors( cudaEventCreate( &stop ) );
 
-	// 	// compute elapsed time
-	float time_transfer_to_device = -1.0f;  // elapsed time for memory transfer host to device (ms)
-	// 	checkCudaRTErrors( cudaEventElapsedTime( &time_transfer_to_device, start, stop ) );
-
-	// 	mexPrintf("done! (%.3f ms)\n", time_transfer_to_device);
-
-	// 	// flush cache
-	// 	mexEvalString( "drawnow;" );
+	// place start event into the default stream
+	checkCudaRTErrors( cudaEventRecord( start, 0 ) );
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// 0.) lateral voxel positions
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// a) compute required size for array in bytes (FLOAT)
-	const size_t size_bytes_positions_x = sizeof( t_float_gpu ) * N_pos_lat_x;
+	const size_t size_bytes_positions_x = sizeof( t_float_gpu ) * N_positions_x;
 
 	// b) allocate memory
 	t_float_gpu* positions_x = (t_float_gpu *) mxMalloc( size_bytes_positions_x );
 
 	// c) convert lateral image coordinates
-	for( int l_x = 0; l_x < N_pos_lat_x; l_x++ )
+	for( int l_x = 0; l_x < N_positions_x; l_x++ )
 	{
 		positions_x[ l_x ] = (t_float_gpu) positions_x_dbl[ l_x ];
 	}
@@ -812,13 +726,13 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	// 1.) axial voxel positions
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// a) compute required size for array in bytes (FLOAT)
-	const size_t size_bytes_positions_z = sizeof( t_float_gpu ) * N_pos_lat_z;
+	const size_t size_bytes_positions_z = sizeof( t_float_gpu ) * N_positions_z;
 
 	// b) allocate memory
 	t_float_gpu* positions_z = (t_float_gpu *) mxMalloc( size_bytes_positions_z );
 
 	// c) conversion to selected data type
-	for( int l_z = 0; l_z < N_pos_lat_z; l_z++ )
+	for( int l_z = 0; l_z < N_positions_z; l_z++ )
 	{
 		positions_z[ l_z ] = (t_float_gpu) positions_z_dbl[ l_z ];
 	}
@@ -882,37 +796,20 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	checkCudaRTErrors( cudaMemcpy( d_pos_rx_ub_x, pos_rx_ub_x, size_bytes_positions_rx, cudaMemcpyHostToDevice ) );
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// 4.) F-number
-	//------------------------------------------------------------------------------------------------------------------------------------------
-	// a) compute required size for array in bytes (FLOAT)
-	const size_t size_bytes_f_numbers = sizeof( t_float_gpu ) * N_samples_dft_bp;
-
-	// b) allocate memory
-	t_float_gpu* f_number_values = (t_float_gpu*) mxMalloc( size_bytes_f_numbers );
-
-	// c) convert frequency-dependent F-number
-	for( int index_f = 0; index_f < N_samples_dft_bp; index_f++ )
-	{
-		f_number_values[ index_f ] = (t_float_gpu) f_number_values_dbl[ index_f ];
-		// mexPrintf( "f_number_values[ %d ] = %.2f\n", index_f, f_number_values[ index_f ] );
-	}
-
-	// d) allocate device memory
-	t_float_gpu* d_f_number_values = NULL;
-	checkCudaRTErrors( cudaMalloc( (void **) &d_f_number_values, size_bytes_f_numbers ) );
-
-	// e) copy data
-	checkCudaRTErrors( cudaMemcpy( d_f_number_values, f_number_values, size_bytes_f_numbers, cudaMemcpyHostToDevice ) );
-
-	//------------------------------------------------------------------------------------------------------------------------------------------
-	// 5.) TODO: arguments
-	//------------------------------------------------------------------------------------------------------------------------------------------
-
-	//------------------------------------------------------------------------------------------------------------------------------------------
-	// 6.) image
+	// 4.) propagation distances of incident wave
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// a) compute required size for array in bytes
-	const size_t size_bytes_DAS_image_RF_complex = sizeof( cufftComplex ) * N_pos_lat_x * N_pos_lat_z;
+	const size_t size_bytes_distances_tx = sizeof( t_float_gpu ) * N_positions_x * N_positions_z;
+
+	// b) allocate device memory
+	t_float_gpu* d_distances_tx = NULL;
+	checkCudaRTErrors( cudaMalloc( (void **) &d_distances_tx, size_bytes_distances_tx ) );
+
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// 5.) image
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// a) compute required size for array in bytes
+	const size_t size_bytes_DAS_image_RF_complex = sizeof( cufftComplex ) * N_positions_x * N_positions_z;
 
 	// b) allocate device memory
 	cufftComplex* d_image = NULL;
@@ -922,10 +819,10 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	checkCudaRTErrors( cudaMemset( d_image, 0, size_bytes_DAS_image_RF_complex ) );
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
-	// 7.) weights
+	// 6.) weights
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// a) compute required size for array in bytes
-	size_t size_bytes_weights = sizeof( t_float_gpu ) * N_pos_lat_x * N_pos_lat_z;
+	size_t size_bytes_weights = sizeof( t_float_gpu ) * N_positions_x * N_positions_z;
 
 	// b) allocate device memory
 	t_float_gpu* d_weights = NULL;
@@ -934,11 +831,25 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	// c) initialize weights w/ zeros
 	checkCudaRTErrors( cudaMemset( d_weights, 0, size_bytes_weights ) );
 
+	// place stop event into the default stream
+	checkCudaRTErrors( cudaEventRecord( stop, 0 ) );
+	checkCudaRTErrors( cudaEventSynchronize( stop ) );
+
+	// compute elapsed time for memory transfer host to device (ms)
+	float time_transfer_to_device = -1.0f;
+	checkCudaRTErrors( cudaEventElapsedTime( &time_transfer_to_device, start, stop ) );
+
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// 7.) memory status
 	//------------------------------------------------------------------------------------------------------------------------------------------
+	// array geometry
+	const size_t size_bytes_geometry_array = 3 * size_bytes_positions_rx;
+
+	// matrix of phase shifts
+	const size_t size_bytes_phase = sizeof( cufftComplex ) * N_positions_x * N_positions_z * N_el_rx;
+
 	// total memory consumption
-	const size_t size_bytes_total = size_bytes_positions_x + size_bytes_positions_z + size_bytes_RF_data + 3 * size_bytes_positions_rx + size_bytes_f_numbers + size_bytes_DAS_image_RF_complex + size_bytes_weights;
+	const size_t size_bytes_total = size_bytes_positions_x + size_bytes_positions_z + size_bytes_RF_data + size_bytes_geometry_array + size_bytes_distances_tx + size_bytes_phase + size_bytes_DAS_image_RF_complex + size_bytes_weights;
 
 	// get available amount of global memory on GPU device
 	size_t mem_available = 0;
@@ -946,33 +857,30 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 
 	if( verbosity > 0 )
 	{
-		mexPrintf(" %s\n", "--------------------------------------------------------------------------------");
-		mexPrintf(" memory consumption (available global memory: %-6.2f MiByte (%6.2f %%))\n", ((double) mem_available) / BYTES_PER_MEBIBYTE, ((double) mem_available) * 100 / deviceProp.totalGlobalMem);
-		mexPrintf(" %s\n", "--------------------------------------------------------------------------------");
-		mexPrintf(" %4s %-29s: % 10.2f KiByte (%6.2f %%)\n", "", "RF signals", ((double) size_bytes_RF_data) / BYTES_PER_KIBIBYTE, ((double) size_bytes_RF_data) * 100 / size_bytes_total);
-		mexPrintf(" %4s %-29s: % 10.2f KiByte (%6.2f %%)\n", "", "lateral grid positions", ((double) size_bytes_positions_x) / BYTES_PER_KIBIBYTE, ((double) size_bytes_positions_x) * 100 / size_bytes_total);
-		mexPrintf(" %4s %-29s: % 10.2f KiByte (%6.2f %%)\n", "", "axial grid positions", ((double) size_bytes_positions_z) / BYTES_PER_KIBIBYTE, ((double) size_bytes_positions_z) * 100 / size_bytes_total);
-		mexPrintf(" %4s %-29s: % 10.2f KiByte (%6.2f %%)\n", "", "array geometry", ((double) 3.0 * size_bytes_positions_rx) / BYTES_PER_KIBIBYTE, ((double) 3.0 * size_bytes_positions_rx) * 100 / size_bytes_total);
-		mexPrintf(" %4s %-29s: % 10.2f KiByte (%6.2f %%)\n", "", "F-numbers", ((double) size_bytes_f_numbers) / BYTES_PER_KIBIBYTE, ((double) size_bytes_f_numbers) * 100 / size_bytes_total);
-		mexPrintf(" %4s %-29s: % 10.2f KiByte (%6.2f %%)\n", "", "DAS image", ((double) size_bytes_DAS_image_RF_complex) / BYTES_PER_KIBIBYTE, ((double) size_bytes_DAS_image_RF_complex) * 100 / size_bytes_total);        
-		mexPrintf(" %4s %-29s: % 10.2f KiByte (%6.2f %%)\n", "", "weights", ((double) size_bytes_weights) / BYTES_PER_KIBIBYTE, ((double) size_bytes_weights) * 100 / size_bytes_total);
-		mexPrintf(" %4s %s  %s\n", "", "-----------------------------", "----------------------------");
-		mexPrintf(" %4s %-29s: % 10.2f KiByte (%6.2f %%)\n", "", "total", ((double) size_bytes_total) / BYTES_PER_KIBIBYTE, 100.0);
+		mexPrintf( " %s\n", "--------------------------------------------------------------------------------" );
+		mexPrintf( " memory consumption (available global memory: %-6.2f MiByte (%6.2f %%))\n", ((double) mem_available) / BYTES_PER_MEBIBYTE, ((double) mem_available) * 100 / deviceProp.totalGlobalMem );
+		mexPrintf( " %s\n", "--------------------------------------------------------------------------------" );
+		mexPrintf( "%4s %-29s: % 10.2f KiByte (%6.2f %%)\n", "", "lateral voxel positions", ((double) size_bytes_positions_x) / BYTES_PER_KIBIBYTE, ((double) size_bytes_positions_x) * 100 / size_bytes_total );
+		mexPrintf( "%4s %-29s: % 10.2f KiByte (%6.2f %%)\n", "", "axial voxel positions", ((double) size_bytes_positions_z) / BYTES_PER_KIBIBYTE, ((double) size_bytes_positions_z) * 100 / size_bytes_total );
+		mexPrintf( "%4s %-29s: % 10.2f KiByte (%6.2f %%)\n", "", "RF signals", ((double) size_bytes_RF_data) / BYTES_PER_KIBIBYTE, ((double) size_bytes_RF_data) * 100 / size_bytes_total );
+		mexPrintf( "%4s %-29s: % 10.2f KiByte (%6.2f %%)\n", "", "array geometry", ((double) size_bytes_geometry_array) / BYTES_PER_KIBIBYTE, ((double) size_bytes_geometry_array) * 100 / size_bytes_total );
+		mexPrintf( "%4s %-29s: % 10.2f KiByte (%6.2f %%)\n", "", "TX distances", ((double) size_bytes_distances_tx) / BYTES_PER_KIBIBYTE, ((double) size_bytes_distances_tx) * 100 / size_bytes_total );
+		if( !F_number_constant ) mexPrintf( "%4s %-29s: % 10.2f KiByte (%6.2f %%)\n", "", "phase matrix", ( (double) size_bytes_phase ) / BYTES_PER_KIBIBYTE, ((double) size_bytes_phase) * 100 / size_bytes_total );
+		if( !F_number_constant ) mexPrintf( "%4s %-29s: % 10.2f KiByte (%6.2f %%)\n", "", "DAS image (monofrequent)", ((double) size_bytes_DAS_image_RF_complex) / BYTES_PER_KIBIBYTE, ((double) size_bytes_DAS_image_RF_complex) * 100 / size_bytes_total );
+		mexPrintf( "%4s %-29s: % 10.2f KiByte (%6.2f %%)\n", "", "DAS image", ((double) size_bytes_DAS_image_RF_complex) / BYTES_PER_KIBIBYTE, ((double) size_bytes_DAS_image_RF_complex) * 100 / size_bytes_total );
+		mexPrintf( "%4s %-29s: % 10.2f KiByte (%6.2f %%)\n", "", "weights", ((double) size_bytes_weights) / BYTES_PER_KIBIBYTE, ((double) size_bytes_weights) * 100 / size_bytes_total );
+		mexPrintf( "%4s %s  %s\n", "", "-----------------------------", "----------------------------" );
+		mexPrintf( "%4s %-29s: % 10.2f KiByte (%6.2f %%)\n", "", "total", ((double) size_bytes_total) / BYTES_PER_KIBIBYTE, 100.0 );
 	}
 
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	// 5.) compute DFTs of data_RF along first MATLAB dimension; choose appropriate order; in place
+	// 6.) compute DFTs of data_RF along first MATLAB dimension; choose appropriate order; in place
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	// elapsed time for fft algorithm (ms)
 	float time_dft = -1.0f;
 
 	// print status
 	if( verbosity > 1 ) mexPrintf(" %4s 2.) %s... ", "", "computing DFT");
-
-	// create events for time-measurement
-	cudaEvent_t start, stop;
-	checkCudaRTErrors( cudaEventCreate( &start ) );
-	checkCudaRTErrors( cudaEventCreate( &stop ) );
 
 	// place start event into the default stream
 	checkCudaRTErrors( cudaEventRecord( start, 0 ) );
@@ -1003,14 +911,14 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	}
 
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	// 6.) copy addresses of __device__ window functions to host
+	// 7.) copy addresses of __device__ window functions to host
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	// 11.) window function for the receive apodization
 	t_window_ptr h_windows[ N_WINDOWS ];    // host-side function pointers to __device__ window functions
 	checkCudaRTErrors( cudaMemcpyFromSymbol( &h_windows, d_windows, N_WINDOWS * sizeof( t_window_ptr ) ) );
 
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	// 7.) compute DAS image on GPU
+	// 8.) compute DAS image on GPU
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	// 	mexPrintf(" %4s 3.) %s... ", "", "computing DAS image on GPU");
 	float time_kernel = -1.0f;              // elapsed time for kernel execution (ms)
@@ -1020,58 +928,104 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	// place start event into the default stream
 	checkCudaRTErrors( cudaEventRecord( start, 0 ) );
 
-	// TODO: kernel to compute TOFs; d_arguments: N_el_rx * N_positions_x * N_positions_z
+	//-----------------------------------------------------------------------------------------------------------------------------------------
+	// compute arguments of complex exponentials
+	//-----------------------------------------------------------------------------------------------------------------------------------------
+	// compute distances of incident wave
+	// TODO: other types of waves
+	das_kernel_distances_pw<<<numBlocks, threadsPerBlock>>>( d_distances_tx,
+															 d_positions_x, d_positions_z, N_positions_x, N_positions_z,
+															 e_steering_x_dbl, e_steering_z_dbl, pos_tx_ctr_x_ref_dbl );
 
-	// iterate rx channels
-	for( int k_rx = 0; k_rx < N_el_rx; k_rx++ )
+	// check type of F-number
+	if( F_number_constant )
 	{
+		//--------------------------------------------------------------------------------------------------------------------------------------
+		// i.) constant F-number
+		//--------------------------------------------------------------------------------------------------------------------------------------
+		// compute DAS image for each rx channel
 
-		// compute DAS image for current tx/rx configuration
-		if( F_number_constant )
+		// iterate rx channels
+		for( int k_rx = 0; k_rx < N_el_rx; k_rx++ )
 		{
+			// compute DAS image for current rx channel
 			das_F_number_constant<<<numBlocks, threadsPerBlock>>>( d_image, d_weights,
-																   ((cufftComplex *) d_data_RF) + k_rx * N_samples_dft,
-																   d_positions_x, d_positions_z, pos_rx_ctr_x[ k_rx ], d_pos_rx_lb_x, d_pos_rx_ub_x,
-																   f_number_values[ 0 ],
-																   h_windows[ index_window_rx ],
-																   argument_coefficient_dbl, N_blocks_Omega_bp, index_f_lb, index_f_ub,
-																   N_pos_lat_x, N_pos_lat_z, e_steering_x_dbl, e_steering_z_dbl, pos_tx_ctr_x_ref_dbl,
-																   argument_add_dbl,
-																   element_pitch_dbl, M_el_rx, N_el_rx );
-		}
-		else
-		{
-			if( index_window_f == 0)
-			{
-				// boxcar window along bandwidth
-				das_F_number_frequency_dependent<<<numBlocks, threadsPerBlock>>>( d_image,
-																				  ((cufftComplex *) d_data_RF) + k_rx * N_samples_dft,
-																				  d_positions_x, d_positions_z,
-																				  d_pos_rx_ctr_x, d_pos_rx_lb_x, d_pos_rx_ub_x,
-																				  d_f_number_values,
-																				  h_windows[ index_window_rx ],
-																				  argument_coefficient_dbl, N_blocks_Omega_bp, index_f_lb, index_f_ub,
-																				  N_pos_lat_x, N_pos_lat_z, e_steering_x_dbl, e_steering_z_dbl, pos_tx_ctr_x_ref_dbl,
-																				  argument_add_dbl, k_rx,
-																				  element_pitch_dbl, M_el_rx, N_el_rx );
-			}
-			else
-			{
-				// // other window
-				// das_F_number_frequency_dependent_window<<<numBlocks, threadsPerBlock>>>( d_image,
-				// 																		 ((cufftComplex *) d_data_RF) + k_rx * N_samples_dft,
-				// 																		 d_positions_x, d_positions_z,
-				// 																		 d_pos_rx_ctr_x, d_pos_rx_lb_x, d_pos_rx_ub_x,
-				// 																		 d_f_number_values,
-				// 																		 h_windows[ index_window_rx ], h_windows[ index_window_f ],
-				// 																		 argument_coefficient_dbl, N_blocks_Omega_bp, index_f_lb, N_samples_dft_bp,
-				// 																		 N_pos_lat_x, N_pos_lat_z, e_steering_x, e_steering_z, pos_tx_ctr_x_ref_dbl,
-				// 																		 argument_add_dbl, f_s_over_c_0_dbl, k_rx,
-				// 																		 ( t_float_gpu ) element_pitch_dbl, ( t_float_gpu ) M_el_rx, N_el_rx );
-			} // if( index_window_f == 0)
-		} // if( F_number_constant )
+																   d_distances_tx, argument_coefficient_dbl, argument_add_dbl,
+																   ( (cufftComplex *) d_data_RF ) + k_rx * N_samples_dft,
+																   d_positions_x, d_positions_z, N_positions_x, N_positions_z,
+																   pos_rx_ctr_x[ k_rx ], element_pitch_dbl, d_pos_rx_lb_x, d_pos_rx_ub_x, N_el_rx, M_el_rx,
+																   f_number_values_dbl[ 0 ], h_windows[ index_window_rx ],
+																   N_blocks_Omega_bp, index_f_lb, index_f_ub );
 
-	} // for( k_rx = 0; k_rx < N_el_rx; k_rx++ )
+		} // for( int k_rx = 0; k_rx < N_el_rx; k_rx++ )
+
+		// check normalization
+		if( normalization )
+		{
+			// normalize image
+			das_kernel_normalization<<<numBlocks, threadsPerBlock>>>( d_image, d_image, d_weights, 0.0f, N_positions_x, N_positions_z );
+		}
+	}
+	else
+	{
+		//--------------------------------------------------------------------------------------------------------------------------------------
+		// ii.) frequency-dependent F-number
+		//--------------------------------------------------------------------------------------------------------------------------------------
+		// compute DAS image for each discrete frequency
+
+		// window function varies w/ frequency
+		cufftComplex* d_image_act = d_image;
+		if( normalization ) checkCudaRTErrors( cudaMalloc( (void **) &d_image_act, size_bytes_DAS_image_RF_complex ) );
+
+		// matrix of phase shifts
+		cufftComplex* d_phase = NULL;
+		checkCudaRTErrors( cudaMalloc( (void **) &d_phase, size_bytes_phase ) );
+
+		// cuBLAS settings
+		const t_float_complex_gpu gemm_alpha = make_cuFloatComplex( 1.0f, 0.0f );
+		t_float_complex_gpu gemm_beta = make_cuFloatComplex( 1.0f, 0.0f );
+		if( normalization ) gemm_beta = make_cuFloatComplex( 0.0f, 0.0f );
+
+		// create cuBLAS handle
+		cublasHandle_t handle;
+		checkCudaBLASErrors( cublasCreate( &handle ) );
+
+		// iterate discrete frequencies
+		for( int index_f = index_f_lb; index_f <= index_f_ub; index_f++ )
+		{
+			// compute weighted complex exponentials
+			das_kernel_phase_shifts<<<numBlocks, threadsPerBlock>>>( d_phase, d_weights, d_distances_tx, index_f,
+																	 d_positions_x, d_positions_z, N_positions_x, N_positions_z,
+																	 d_pos_rx_ctr_x, element_pitch_dbl, d_pos_rx_lb_x, d_pos_rx_ub_x, N_el_rx, M_el_rx, N_blocks_rx,
+																	 f_number_values_dbl[ index_f - index_f_lb ], h_windows[ index_window_rx ],
+																	 argument_coefficient_dbl, argument_add_dbl );
+
+			// matrix-vector product
+			// CUBLAS_OP_N: non-transpose operation / CUBLAS_OP_T: transpose operation / CUBLAS_OP_C: conjugate transpose operation
+			checkCudaBLASErrors(
+				cublasCgemm( handle,
+						CUBLAS_OP_N, CUBLAS_OP_T,
+						N_positions_x * N_positions_z, 1, N_el_rx,
+						&gemm_alpha, d_phase, N_positions_x * N_positions_z, ( (cufftComplex *) d_data_RF ) + index_f, N_samples_dft,
+						&gemm_beta, d_image_act, N_positions_x * N_positions_z
+					)
+			);
+
+			// check normalization
+			if( normalization )
+			{
+				// normalize monofrequent image and add to final image
+				das_kernel_normalization<<<numBlocks, threadsPerBlock>>>( d_image, d_image_act, d_weights, 1.0f, N_positions_x, N_positions_z );
+			}
+
+		} // for( int index_f = index_f_lb; index_f <= index_f_ub; index_f++ )
+
+		// destroy cuBLAS handle
+		if( normalization ) checkCudaRTErrors( cudaFree( d_image_act ) );
+		checkCudaBLASErrors( cublasDestroy( handle ) );
+		checkCudaRTErrors( cudaFree( d_phase ) );
+
+	} // if( F_number_constant )
 
 	// place stop event into the default stream
 	checkCudaRTErrors( cudaEventRecord( stop, 0 ) );
@@ -1080,26 +1034,25 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	// compute elapsed time
 	checkCudaRTErrors( cudaEventElapsedTime( &time_kernel, start, stop ) );
 
-	// mexPrintf("done! (%.3f ms)\n", time_kernel);
-
 	// flush cache
 	mexEvalString( "drawnow;" );
 
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	// 8.) copy DAS image and weights to host
+	// 9.) copy DAS image and weights to host
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// 1.) allocate memory in the MATLAB workspace for the output
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// complex-valued DAS image
-	plhs[ 0 ] = mxCreateNumericMatrix( N_pos_lat_z, N_pos_lat_x, mxSINGLE_CLASS, mxCOMPLEX );
+	plhs[ 0 ] = mxCreateNumericMatrix( N_positions_z, N_positions_x, mxSINGLE_CLASS, mxCOMPLEX );
 	float* const image_DAS_real = (float*) mxGetData( plhs[ 0 ] );
 	float* const image_DAS_imag = (float*) mxGetImagData( plhs[ 0 ] );
 
 	// sum of apodization weights for each grid point (host)
-	plhs[ 1 ] = mxCreateNumericMatrix( N_pos_lat_z, N_pos_lat_x, mxSINGLE_CLASS, mxREAL );
-	t_float_gpu* const h_weights = (t_float_gpu*) mxGetData( plhs[ 1 ] );
+	t_float_gpu* h_weights = NULL;
+	plhs[ 1 ] = mxCreateNumericMatrix( N_positions_z, N_positions_x, mxSINGLE_CLASS, mxREAL );
+	h_weights = (t_float_gpu*) mxGetData( plhs[ 1 ] );
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// 2.) copy data from device to host
@@ -1115,10 +1068,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	checkCudaRTErrors( cudaMemcpy( image_DAS_flt_cpx, d_image, size_bytes_DAS_image_RF_complex, cudaMemcpyDeviceToHost ) );
 
 	// c) copy weights to host
-	if( F_number_constant )
-	{
-		checkCudaRTErrors( cudaMemcpy( h_weights, d_weights, size_bytes_weights, cudaMemcpyDeviceToHost ) );
-	}
+	checkCudaRTErrors( cudaMemcpy( h_weights, d_weights, size_bytes_weights, cudaMemcpyDeviceToHost ) );
 
 	// place stop event into the default stream
 	checkCudaRTErrors( cudaEventRecord( stop, 0 ) );
@@ -1128,44 +1078,22 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	float time_transfer_to_host = -1.0f;
 	checkCudaRTErrors( cudaEventElapsedTime( &time_transfer_to_host, start, stop ) );
 
-	// 	mexPrintf("done! (%.3f ms)\n", time_transfer_to_host);
+	// mexPrintf("done! (%.3f ms)\n", time_transfer_to_host);
 
-	// d) extract complex-valued pixels and divide by weights (if appropriate)
-	for( int l_z = 0; l_z < N_pos_lat_z; l_z++ )
+	// d) extract complex-valued pixels
+	for( int l_z = 0; l_z < N_positions_z; l_z++ )
 	{
-		for( int l_x = 0; l_x < N_pos_lat_x; l_x++ )
+		for( int l_x = 0; l_x < N_positions_x; l_x++ )
 		{
+			// copy
+			image_DAS_real[ l_x * N_positions_z + l_z ] = 2 * image_DAS_flt_cpx[ l_x * N_positions_z + l_z ].x / N_order_dft;
+			image_DAS_imag[ l_x * N_positions_z + l_z ] = 2 * image_DAS_flt_cpx[ l_x * N_positions_z + l_z ].y / N_order_dft;
 
-			//
-			image_DAS_real[ l_x * N_pos_lat_z + l_z ] = image_DAS_flt_cpx[ l_x * N_pos_lat_z + l_z ].x;
-			image_DAS_imag[ l_x * N_pos_lat_z + l_z ] = image_DAS_flt_cpx[ l_x * N_pos_lat_z + l_z ].y;
-
-			// normalize pixels for constant F-number
-			if( F_number_constant )
-			{
-				// check how many rx channels contributed to current pixel
-				if( h_weights[ l_x * N_pos_lat_z + l_z ] > 0 )
-				{
-					// image_DAS_real[ l_x * N_pos_lat_z + l_z ] = image_DAS_real[ l_x * N_pos_lat_z + l_z ] / ( N_order_dft * h_weights[ l_x * N_pos_lat_z + l_z ] );
-					// image_DAS_imag[ l_x * N_pos_lat_z + l_z ] = image_DAS_imag[ l_x * N_pos_lat_z + l_z ] / ( N_order_dft * h_weights[ l_x * N_pos_lat_z + l_z ] );
-					image_DAS_real[ l_x * N_pos_lat_z + l_z ] = image_DAS_real[ l_x * N_pos_lat_z + l_z ] / ( h_weights[ l_x * N_pos_lat_z + l_z ] );
-					image_DAS_imag[ l_x * N_pos_lat_z + l_z ] = image_DAS_imag[ l_x * N_pos_lat_z + l_z ] / ( h_weights[ l_x * N_pos_lat_z + l_z ] );
-				}
-				// else
-				// {
-				// 	// no rx channel contributed to current pixel
-				// 	image_DAS_real[ l_x * N_pos_lat_z + l_z ] = 0;
-				// 	image_DAS_imag[ l_x * N_pos_lat_z + l_z ] = 0;
-				// }
-			} // if( F_number_constant )
-
-		} // for( int l_x = 0; l_x < N_pos_lat_x; l_x++ )
-	} // for( int l_z = 0; l_z < N_pos_lat_z; l_z++ )
-
-	// mxDestroyArray( lhs[ 0 ] );
+		} // for( int l_x = 0; l_x < N_positions_x; l_x++ )
+	} // for( int l_z = 0; l_z < N_positions_z; l_z++ )
 
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	// 9.) print performance statistics
+	// 10.) print performance statistics
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	// total elapsed time (ms)
 	const float time_total = time_transfer_to_device + time_dft + time_kernel + time_transfer_to_host;
@@ -1187,7 +1115,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	}
 
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	// 10.) clean up memory
+	// 11.) clean up memory
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
@@ -1199,7 +1127,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	checkCudaRTErrors( cudaFree( d_pos_rx_ctr_x ) );
 	checkCudaRTErrors( cudaFree( d_pos_rx_lb_x ) );
 	checkCudaRTErrors( cudaFree( d_pos_rx_ub_x ) );
-	checkCudaRTErrors( cudaFree( d_f_number_values ) );
+	checkCudaRTErrors( cudaFree( d_distances_tx ) );
 	checkCudaRTErrors( cudaFree( d_image ) );
 	checkCudaRTErrors( cudaFree( d_weights ) );
 
@@ -1210,13 +1138,12 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	// b) host memory
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// checkCudaErrors( cudaFreeHost( buffer ) );
-	mxFree( f_number_values );
-	mxFree( data_RF );
-	mxFree( positions_z );
 	mxFree( positions_x );
-	mxFree( pos_rx_ub_x  );
-	mxFree( pos_rx_lb_x  );
+	mxFree( positions_z );
+	mxFree( data_RF );
 	mxFree( pos_rx_ctr_x );
+	mxFree( pos_rx_lb_x );
+	mxFree( pos_rx_ub_x );
 	mxFree( image_DAS_flt_cpx );
 
 } // void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
