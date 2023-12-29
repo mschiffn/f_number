@@ -12,18 +12,18 @@
  %
  % A uniform linear transducer array is assumed.
  %
- % -------------------------------------------------------------------------
+ % -----------------------------------------------------------------------------
  % USAGE:
- % -------------------------------------------------------------------------
+ % -----------------------------------------------------------------------------
  % minimal:
  % image = gpu_bf_das_pw_rf( positions_x, positions_z, data_RF, f_s, steering_angle, element_width, element_pitch, c_0 );
  %
  % maximal:
  % [ image, weights ] = gpu_bf_das_pw_rf( positions_x, positions_z, data_RF, f_s, steering_angle, element_width, element_pitch, c_0, f_bounds, index_t0, window, F_number, normalization, index_gpu );
  %
- % -------------------------------------------------------------------------
+ % -----------------------------------------------------------------------------
  % INPUTS:
- % -------------------------------------------------------------------------
+ % -----------------------------------------------------------------------------
  % REQUIRED
  %  00.) positions_x:           lateral voxel positions (m)
  %  01.) positions_z:           axial voxel positions (m)
@@ -43,28 +43,21 @@
  %  13.) index_gpu:             index of the GPU to be used (1)
  %  14.) verbosity:             verbosity level of output
  %
- % -------------------------------------------------------------------------
+ % -----------------------------------------------------------------------------
  % OUTPUTS:
- % -------------------------------------------------------------------------
+ % -----------------------------------------------------------------------------
  %  00.) image:                 complex-valued DAS image
  %  01.) weights:               weights for each voxel
  %
- % -------------------------------------------------------------------------
+ % -----------------------------------------------------------------------------
  % ABOUT:
- % -------------------------------------------------------------------------
+ % -----------------------------------------------------------------------------
  % author: Martin Schiffner
  % date: 2010-12-17
- % modified: 2023-12-23
+ % modified: 2023-12-28
  % All rights reserved!
  %
  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
-
-// TODO: parameter of Tukey window
-
-// __device__ t_float_gpu distance_pw( t_float_gpu pos_focus_x, t_float_gpu pos_focus_z, t_float_gpu pos_rx_ctr_x, t_float_gpu e_steering_x, t_float_gpu e_steering_z )
-// {
-
-// }
 
 // CUDA, cuFFT, and cuBLAS
 #include <cuda.h>
@@ -92,15 +85,15 @@
 #define N_THREADS_Y 8
 #define N_THREADS_PER_BLOCK 64
 
-#define REVISION "1.2"
-#define DATE "2023-12-23"
+#define REVISION "1.3"
+#define DATE "2023-12-28"
 #define BYTES_PER_MEBIBYTE 1048576
 #define BYTES_PER_KIBIBYTE 1024
 
 // kernels
 #include "das_kernel_distances_pw.cu"			// propagation distances of steered PW
 #include "das_kernel_f_number_constant.cu"		// fixed F-number
-#include "das_kernel_phase_shifts.cu"			// complex exponentials
+#include "das_kernel_phase_shifts.cu"			// complex-valued apodization weights
 #include "das_kernel_normalization.cu"			// normalization of the image
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -320,7 +313,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	// 10.) window function for the receive apodization ( object of class windows.window )
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// a) default value
-	int index_window_rx = 0;
+	t_window_config window_rx_config = { .index = 0, .parameter = 0.0 };
 
 	// b) check specified value
 	if( nrhs >= 11 && !mxIsEmpty( prhs[ 10 ] ) )
@@ -332,11 +325,21 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 		}
 
 		// map classes to window id
-		index_window_rx = get_window_id( prhs[ 10 ] ); // index of apodization function
+		if( get_window_id( &window_rx_config, prhs[ 10 ] ) )
+		{
+			mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidWindow", "Could not read window parameters!" );
+		}
 	}
 
-	// c) check validity of window id
-	if( !( ( index_window_rx >= 0 ) && ( index_window_rx < N_WINDOWS ) ) ) mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidWindow", "Unknown window function!" );
+	// c) check validity of window configuration
+	if( !( ( window_rx_config.index >= 0 ) && ( window_rx_config.index < N_WINDOWS ) ) )
+	{
+		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidWindow", "Unknown window function!" );
+	}
+	if( !( ( window_rx_config.parameter >= 0 ) && ( window_rx_config.parameter <= 1 ) ) )
+	{
+		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidWindow", "Invalid window parameter!" );
+	}
 
 	// d) name of window function
 	char window_rx_name[ 128 ];
@@ -388,7 +391,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 	//------------------------------------------------------------------------------------------------------------------------------------------
 	// a) default values
 	bool normalization = true;
-	int index_window_f = 0;
+	t_window_config window_f_config = { .index = 0, .parameter = 0.0 };
 	char normalization_name[ 128 ] = { "on" };
 
 	// b) check specified value
@@ -409,14 +412,21 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 		// map classes to window id
 		if( mxIsClass( prhs[ 12 ], "normalizations.windowed" ) )
 		{
-			index_window_f = get_window_id( mxGetProperty( prhs[ 12 ], 0, "window" ) );
+			if( get_window_id( &window_f_config, mxGetProperty( prhs[ 12 ], 0, "window" ) ) )
+			{
+				mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidFrequencyWindow", "Could not read window parameters!" );
+			}
 		}
 	}
 
-	// c) check validity of window id
-	if( !( ( index_window_f >= 0 ) && ( index_window_f < N_WINDOWS ) ) )
+	// c) check validity of window configuration
+	if( !( ( window_f_config.index >= 0 ) && ( window_f_config.index < N_WINDOWS ) ) )
 	{
 		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidFrequencyWindow", "Unknown frequency window function!" );
+	}
+	if( !( ( window_f_config.parameter >= 0 ) && ( window_f_config.parameter <= 1 ) ) )
+	{
+		mexErrMsgIdAndTxt( "gpu_bf_das_pw_rf:InvalidWindow", "Invalid window parameter!" );
 	}
 
 	//------------------------------------------------------------------------------------------------------------------------------------------
@@ -594,7 +604,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 		mexPrintf( "  %-20s: %7.2f mm %8s", "reference position", pos_tx_ctr_x_ref_dbl * 1000, "" );
 		mexPrintf( " %-22s: %-6d\n", "number of frequencies", N_samples_dft_bp );
 		mexPrintf( "  %-20s: %-6.2f %12s", "additional shift", index_t0_dbl, "" );
-		mexPrintf( " %-22s: %s (%d)\n", "window", window_rx_name, index_window_rx );
+		mexPrintf( " %-22s: %s (%d)\n", "window", window_rx_name, window_rx_config.index );
 		mexPrintf( "  %-20s: %s\n", "F-number", f_number_name );
 		mexPrintf( "  %-20s: %s\n", "normalization", normalization_name );
 
@@ -954,7 +964,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 																   ( (cufftComplex *) d_data_RF ) + k_rx * N_samples_dft,
 																   d_positions_x, d_positions_z, N_positions_x, N_positions_z,
 																   pos_rx_ctr_x[ k_rx ], element_pitch_dbl, d_pos_rx_lb_x, d_pos_rx_ub_x, N_el_rx, M_el_rx,
-																   f_number_values_dbl[ 0 ], h_windows[ index_window_rx ],
+																   f_number_values_dbl[ 0 ], h_windows[ window_rx_config.index ], window_rx_config.parameter,
 																   N_blocks_Omega_bp, index_f_lb, index_f_ub );
 
 		} // for( int k_rx = 0; k_rx < N_el_rx; k_rx++ )
@@ -997,7 +1007,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 			das_kernel_phase_shifts<<<numBlocks, threadsPerBlock>>>( d_phase, d_weights, d_distances_tx, index_f,
 																	 d_positions_x, d_positions_z, N_positions_x, N_positions_z,
 																	 d_pos_rx_ctr_x, element_pitch_dbl, d_pos_rx_lb_x, d_pos_rx_ub_x, N_el_rx, M_el_rx, N_blocks_rx,
-																	 f_number_values_dbl[ index_f - index_f_lb ], h_windows[ index_window_rx ],
+																	 f_number_values_dbl[ index_f - index_f_lb ], h_windows[ window_rx_config.index ], window_rx_config.parameter,
 																	 argument_coefficient_dbl, argument_add_dbl );
 
 			// matrix-vector product
@@ -1080,7 +1090,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
 
 	// mexPrintf("done! (%.3f ms)\n", time_transfer_to_host);
 
-	// d) extract complex-valued pixels
+	// d) extract complex-valued voxels
 	for( int l_z = 0; l_z < N_positions_z; l_z++ )
 	{
 		for( int l_x = 0; l_x < N_positions_x; l_x++ )

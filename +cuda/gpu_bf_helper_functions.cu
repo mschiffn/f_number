@@ -53,37 +53,48 @@ double* compute_values( const mxArray* f_number, mxArray* element_pitch_norm )
 //-------------------------------------------------------------------------
 // map MATLAB window classes to ids
 //-------------------------------------------------------------------------
-int get_window_id( const mxArray* window )
+int get_window_id( t_window_config* const config, const mxArray* window )
 {
+
+	if( config == NULL ) return -1;
+	if( window == NULL ) return -1;
 
 	if( mxIsClass( window, "windows.boxcar" ) )
 	{
+		config->index = 0;
+		config->parameter = 0.0;
+
 		return 0;
 	}
 	else if( mxIsClass( window, "windows.hann" ) )
 	{
-		return 1;
+		config->index = 1;
+		config->parameter = 0.0;
+
+		return 0;
 	}
 	else if( mxIsClass( window, "windows.tukey" ) )
 	{
 		// ensure existence of property fraction_cosine
 		if( mxGetProperty( window, 0, "fraction_cosine" ) != NULL )
 		{
-			// read property fraction_cosine
-			if( *( ( double * ) mxGetData( mxGetProperty( window, 0, "fraction_cosine" ) ) ) == 0.2 )
-			{
-				return 2;
-			}
+			config->index = 2;
+			config->parameter = *( ( double * ) mxGetData( mxGetProperty( window, 0, "fraction_cosine" ) ) );
+
+			return 0;
 		}
 	}
 	else if( mxIsClass( window, "windows.triangular" ) )
 	{
-		return 4;
+		config->index = 4;
+		config->parameter = 0.0;
+
+		return 0;
 	}
 
 	return -1;
 
-} // int get_window_id( const mxArray* window )
+} // int get_window_id( t_window_config* const config, const mxArray* window )
 
 //-------------------------------------------------------------------------
 // convert object to string

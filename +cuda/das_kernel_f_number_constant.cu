@@ -3,14 +3,14 @@
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // author: Martin F. Schiffner
 // date: 2022-02-20
-// modified: 2023-12-23
+// modified: 2023-12-28
 
 __global__ void das_F_number_constant( t_float_complex_gpu* const image, t_float_gpu* const weights,
 									   const t_float_gpu* const distances_tx, const t_float_gpu argument_coefficient, const t_float_gpu argument_add,
 									   const t_float_complex_gpu* const data_RF_dft,
 									   const t_float_gpu* const positions_x, const t_float_gpu* const positions_z, const int N_positions_x, const int N_positions_z,
 									   const t_float_gpu pos_rx_ctr_x, const t_float_gpu element_pitch, const t_float_gpu* const pos_rx_lb_x, const t_float_gpu* const pos_rx_ub_x, const int N_elements, const t_float_gpu M_elements,
-									   const t_float_gpu f_number, t_window_ptr window_rx,
+									   const t_float_gpu f_number, t_window_ptr window_rx, const t_float_gpu window_rx_parameter,
 									   const int N_blocks_Omega_bp, const int index_f_lb, const int index_f_ub )
 {
 
@@ -75,7 +75,7 @@ __global__ void das_F_number_constant( t_float_complex_gpu* const image, t_float
 			}
 
 			// c) apodization weight
-			if( index_aperture < N_elements ) apodization = apply( window_rx, distance_x, pos_focus_x - pos_rx_lb_x[ index_aperture ] );
+			if( index_aperture < N_elements ) apodization = apply( window_rx, distance_x, pos_focus_x - pos_rx_lb_x[ index_aperture ], window_rx_parameter );
 		}
 		else
 		{
@@ -91,9 +91,9 @@ __global__ void das_F_number_constant( t_float_complex_gpu* const image, t_float
 				float width_aperture_over_two_desired = distance_z / ( 2 * f_number );
 				index_aperture = ( int ) fminf( floorf( M_elements + ( pos_focus_x + width_aperture_over_two_desired ) / element_pitch ), N_elements - 1 );
 			}
-			
+
 			// c) apodization weight
-			if( index_aperture >= 0 ) apodization = apply( window_rx, distance_x, pos_rx_ub_x[ index_aperture ] - pos_focus_x );
+			if( index_aperture >= 0 ) apodization = apply( window_rx, distance_x, pos_rx_ub_x[ index_aperture ] - pos_focus_x, window_rx_parameter );
 		}
 
 	} // if( l_x < N_positions_x && l_z < N_positions_z )

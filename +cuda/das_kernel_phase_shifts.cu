@@ -1,14 +1,14 @@
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-// DAS kernel, arguments
+// DAS kernel, complex-valued apodization weights
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // author: Martin F. Schiffner
 // date: 2023-12-14
-// modified: 2023-12-22
+// modified: 2023-12-28
 
 __global__ void das_kernel_phase_shifts( cufftComplex* const phase, t_float_gpu* const weights, const t_float_gpu* const distances_tx, const int index_f,
 									  const t_float_gpu* const positions_x, const t_float_gpu* const positions_z, const int N_positions_x, const int N_positions_z,
 									  const t_float_gpu* const pos_rx_ctr_x, const t_float_gpu element_pitch, const t_float_gpu* const pos_rx_lb_x, const t_float_gpu* const pos_rx_ub_x, const int N_elements, const t_float_gpu M_elements, const int N_blocks_rx,
-									  const t_float_gpu f_number, t_window_ptr window_rx,
+									  const t_float_gpu f_number, t_window_ptr window_rx, const t_float_gpu window_rx_parameter,
 									  const t_float_gpu argument_coefficient, const t_float_gpu argument_add )
 {
 
@@ -103,7 +103,7 @@ __global__ void das_kernel_phase_shifts( cufftComplex* const phase, t_float_gpu*
 						}
 
 						// c) apodization weight
-						if( index_aperture < N_elements ) apodization = apply( window_rx, distance_x, pos_focus_x - pos_rx_lb_x[ index_aperture ] );
+						if( index_aperture < N_elements ) apodization = apply( window_rx, distance_x, pos_focus_x - pos_rx_lb_x[ index_aperture ], window_rx_parameter );
 					}
 					else
 					{
@@ -121,7 +121,7 @@ __global__ void das_kernel_phase_shifts( cufftComplex* const phase, t_float_gpu*
 						}
 
 						// c) apodization weight
-						if( index_aperture >= 0 ) apodization = apply( window_rx, distance_x, pos_rx_ub_x[ index_aperture ] - pos_focus_x );
+						if( index_aperture >= 0 ) apodization = apply( window_rx, distance_x, pos_rx_ub_x[ index_aperture ] - pos_focus_x, window_rx_parameter );
 					}
 
 					// c) argument for complex exponential in inverse DFT

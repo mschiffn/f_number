@@ -8,7 +8,7 @@ typedef float t_float_gpu;
 typedef cufftComplex t_float_complex_gpu;
 
 // window function pointer type
-typedef t_float_gpu (*t_window_ptr)( const t_float_gpu, const t_float_gpu );
+// typedef t_float_gpu (*t_window_ptr)( const t_float_gpu, const t_float_gpu );
 
 /*=======================================================================
  * define function prototypes
