@@ -58,7 +58,7 @@ __device__ t_float_gpu hann( const t_float_gpu l, const t_float_gpu L_over_2, co
 //----------------------------------------------------------------------------------------------------------------------------------------------
 // 2.) Tukey window
 //----------------------------------------------------------------------------------------------------------------------------------------------
-__device__ t_float_gpu tukey_20( const t_float_gpu l, const t_float_gpu L_over_2, const t_float_gpu fraction_cosine )
+__device__ t_float_gpu tukey( const t_float_gpu l, const t_float_gpu L_over_2, const t_float_gpu fraction_cosine )
 {
 
 	// auxiliary values
@@ -72,7 +72,7 @@ __device__ t_float_gpu tukey_20( const t_float_gpu l, const t_float_gpu L_over_2
 	// taper part
 	return ( 1.0f + __cosf( M_PI * ( ratio - positions_over_halfwidth_abs_thresh ) / fraction_cosine ) ) / 2.0f;
 
-} // __device__ t_float_gpu tukey_20( const t_float_gpu l, const t_float_gpu L_over_2, const t_float_gpu fraction_cosine )
+} // __device__ t_float_gpu tukey( const t_float_gpu l, const t_float_gpu L_over_2, const t_float_gpu fraction_cosine )
 
 //----------------------------------------------------------------------------------------------------------------------------------------------
 // 3.) cosine window
