@@ -3,7 +3,7 @@
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // author: Martin F. Schiffner
 // date: 2023-12-14
-// modified: 2023-12-28
+// modified: 2025-08-23
 
 __global__ void das_kernel_phase_shifts( cufftComplex* const phase, t_float_gpu* const weights, const t_float_gpu* const distances_tx, const int index_f,
 									  const t_float_gpu* const positions_x, const t_float_gpu* const positions_z, const int N_positions_x, const int N_positions_z,
@@ -30,9 +30,9 @@ __global__ void das_kernel_phase_shifts( cufftComplex* const phase, t_float_gpu*
 	// 1.) compute arguments
 	//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-	// //--------------------------------------------------------------------------------------------------------------------------------------
-	// // a) load propagation distances of incident wave into shared memory
-	// //--------------------------------------------------------------------------------------------------------------------------------------
+	//------------------------------------------------------------------------------------------------------------------------------------------
+	// a) load propagation distances of incident wave into shared memory
+	//------------------------------------------------------------------------------------------------------------------------------------------
 	// ensure validity of positions
 	if( l_x < N_positions_x && l_z < N_positions_z )
 	{
@@ -116,7 +116,7 @@ __global__ void das_kernel_phase_shifts( cufftComplex* const phase, t_float_gpu*
 						// b) upper bound for positive F-number
 						if( f_number > FLT_EPSILON )
 						{
-							float width_aperture_over_two_desired = positions_z[ l_z ] / ( 2 * f_number );
+							float width_aperture_over_two_desired = distance_z / ( 2 * f_number );
 							index_aperture = ( int ) fminf( floorf( M_elements + ( pos_focus_x + width_aperture_over_two_desired ) / element_pitch ), N_elements - 1 );
 						}
 

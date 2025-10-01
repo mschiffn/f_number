@@ -44,7 +44,7 @@ double* compute_values( const mxArray* f_number, mxArray* element_pitch_norm )
 
 	// clean up
 	mxDestroyArray( rhs[ 0 ] );
-	mxDestroyArray( rhs[ 1 ] );
+	// mxDestroyArray( rhs[ 1 ] );
 
 	// get values
 	return ( double * ) mxGetData( lhs[ 0 ] );
