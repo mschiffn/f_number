@@ -3,7 +3,7 @@
 %
 % author: Martin F. Schiffner
 % date: 2021-08-10
-% modified: 2022-02-02
+% modified: 2023-12-20
 %
 classdef tukey < windows.window
 
@@ -86,32 +86,30 @@ classdef tukey < windows.window
         %------------------------------------------------------------------
         % compute samples (scalar)
         %------------------------------------------------------------------
-        function samples = compute_samples_scalar( tukey, positions_over_halfwidth )
+        function samples = compute_samples_scalar( tukey, positions_over_halfwidth_abs )
 
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
-            % calling method ensures class f_numbers.f_number for tukey (scalar)
-            % calling method ensures for element_pitch_over_lambda
+            % calling method ensures class windows.window for tukey (scalar)
+            % calling method ensures positions_over_halfwidth_abs < 1
 
             %--------------------------------------------------------------
             % 2.) compute samples (scalar)
             %--------------------------------------------------------------
-            % absolute values of the positions
-            positions_over_halfwidth_abs = abs( positions_over_halfwidth );
-
             % position indicators
-            samples = double( positions_over_halfwidth_abs <= 1 );
-            indicator_taper = ( positions_over_halfwidth_abs > tukey.fraction_rectangle ) & samples;
-            positions_over_halfwidth_abs_diff_over_length = ( positions_over_halfwidth_abs - tukey.fraction_rectangle ) ./ tukey.fraction_cosine;
-            samples( indicator_taper ) = ( 1 + cos( pi * positions_over_halfwidth_abs_diff_over_length( indicator_taper ) ) ) / 2;
+            indicator_inside = positions_over_halfwidth_abs < 1;
+            samples = double( indicator_inside );
+            indicator_taper = indicator_inside & ( positions_over_halfwidth_abs > tukey.fraction_rectangle );
+            positions_over_halfwidth_abs_diff_over_length = ( positions_over_halfwidth_abs( indicator_taper ) - tukey.fraction_rectangle ) ./ tukey.fraction_cosine;
+            samples( indicator_taper ) = ( 1 + cos( pi * positions_over_halfwidth_abs_diff_over_length ) ) / 2;
 
-        end % function samples = compute_samples_scalar( tukey, positions_over_halfwidth )
+        end % function samples = compute_samples_scalar( tukey, positions_over_halfwidth_abs )
 
         %------------------------------------------------------------------
         % compute derivatives (scalar)
         %------------------------------------------------------------------
-        function derivatives = compute_derivatives_scalar( tukey, positions_over_halfwidth )
+        function derivatives = compute_derivatives_scalar( tukey, positions_over_halfwidth_abs )
 
             %--------------------------------------------------------------
             % 1.) check arguments
@@ -126,15 +124,15 @@ classdef tukey < windows.window
             positions_over_halfwidth_abs_thresh = 1 - tukey.fraction_cosine;
 
             % absolute values of the positions
-            positions_over_halfwidth_abs = abs( positions_over_halfwidth );
+            positions_over_halfwidth_abs = abs( positions_over_halfwidth_abs );
 
             % value of first derivative
-            derivatives = zeros( size( positions_over_halfwidth ) );
+            derivatives = zeros( size( positions_over_halfwidth_abs ) );
             indicator_taper = ( positions_over_halfwidth_abs > positions_over_halfwidth_abs_thresh ) & ( positions_over_halfwidth_abs < 1 );
             positions_over_halfwidth_abs_diff_over_length = ( positions_over_halfwidth_abs - positions_over_halfwidth_abs_thresh ) ./ tukey.fraction_cosine;
-            derivatives( indicator_taper ) = -pi * sign( positions_over_halfwidth ) * sin( pi * positions_over_halfwidth_abs_diff_over_length( indicator_taper ) ) / ( 2 * tukey.fraction_cosine );
+            derivatives( indicator_taper ) = -pi * sign( positions_over_halfwidth_abs ) * sin( pi * positions_over_halfwidth_abs_diff_over_length( indicator_taper ) ) / ( 2 * tukey.fraction_cosine );
 
-        end % function derivatives = compute_derivatives_scalar( tukey, positions_over_halfwidth )
+        end % function derivatives = compute_derivatives_scalar( tukey, positions_over_halfwidth_abs )
 
         %------------------------------------------------------------------
         % string array (scalar)

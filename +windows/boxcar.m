@@ -3,7 +3,7 @@
 %
 % author: Martin F. Schiffner
 % date: 2021-08-10
-% modified: 2022-01-09
+% modified: 2023-12-20
 %
 classdef boxcar < windows.window
 
@@ -48,20 +48,20 @@ classdef boxcar < windows.window
         %------------------------------------------------------------------
         % compute samples (scalar)
         %------------------------------------------------------------------
-        function samples = compute_samples_scalar( ~, positions_over_halfwidth )
+        function samples = compute_samples_scalar( ~, positions_over_halfwidth_abs )
 
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
             % calling method ensures class windows.window for boxcar (scalar)
-            % calling method ensures valid positions_over_halfwidth
+            % calling method ensures positions_over_halfwidth_abs < 1
 
             %--------------------------------------------------------------
             % 2.) compute samples (scalar)
             %--------------------------------------------------------------
-            samples = double( abs( positions_over_halfwidth ) <= 1 );
+            samples = double( positions_over_halfwidth_abs < 1 );
 
-        end % function samples = compute_samples_scalar( ~, positions_over_halfwidth )
+        end % function samples = compute_samples_scalar( ~, positions_over_halfwidth_abs )
 
         %------------------------------------------------------------------
         % string array (scalar)

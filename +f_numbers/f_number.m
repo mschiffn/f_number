@@ -4,7 +4,7 @@
 % ABOUT:
 %   author: Martin F. Schiffner
 %   date: 2021-08-03
-%   modified: 2023-04-15
+%   modified: 2024-09-02
 %
 classdef (Abstract) f_number
 
@@ -238,6 +238,64 @@ classdef (Abstract) f_number
             end
 
         end % function distances = compute_distances_grating( f_numbers, element_pitch_over_lambda )
+
+        %------------------------------------------------------------------
+        % compute depths of field
+        %------------------------------------------------------------------
+        function dofs_over_element_pitch = compute_depths_of_field( f_numbers, element_pitch_over_lambda )
+            % compute_depths_of_field Compute depths of field
+
+            %--------------------------------------------------------------
+            % 1.) check arguments
+            %--------------------------------------------------------------
+            % ensure two arguments
+            narginchk( 2, 2 );
+
+            % method compute_values ensures class f_numbers.f_number for f_numbers
+
+            % ensure cell array for element_pitch_over_lambda
+            if ~iscell( element_pitch_over_lambda )
+                element_pitch_over_lambda = { element_pitch_over_lambda };
+            end
+
+            % ensure equal number of dimensions and sizes
+            [ f_numbers, element_pitch_over_lambda ] = auxiliary.ensureEqualSize( f_numbers, element_pitch_over_lambda );
+
+            %--------------------------------------------------------------
+            % 2.) compute distances of the first-order grating lobes
+            %--------------------------------------------------------------
+            % compute values
+            values = compute_values( f_numbers, element_pitch_over_lambda );
+
+            % ensure cell array for values
+            if ~iscell( values )
+                values = { values };
+            end
+
+            % specify cell array
+            dofs_over_element_pitch = cell( size( f_numbers ) );
+
+            % iterate F-numbers
+            for index_object = 1:numel( f_numbers )
+
+                %----------------------------------------------------------
+                % a) check arguments
+                %----------------------------------------------------------
+                % function compute_values ensured nonempty positive element_pitch_over_lambda{ index_object }
+
+                %----------------------------------------------------------
+                % b) compute depths of field (scalar)
+                %----------------------------------------------------------
+                dofs_over_element_pitch{ index_object } = 6.1434 ./ element_pitch_over_lambda{ index_object } .* values{ index_object }.^2;
+
+            end % for index_object = 1:numel( f_numbers )
+
+            % avoid cell array for single f_numbers
+            if isscalar( f_numbers )
+                dofs_over_element_pitch = dofs_over_element_pitch{ 1 };
+            end
+
+        end % function dofs_over_element_pitch = compute_depths_of_field( f_numbers, element_pitch_over_lambda )
 
         %------------------------------------------------------------------
         % string array (overload string method)

@@ -3,7 +3,7 @@
 %
 % author: Martin F. Schiffner
 % date: 2021-08-10
-% modified: 2022-01-09
+% modified: 2023-12-20
 %
 classdef (Abstract) window
 
@@ -77,8 +77,11 @@ classdef (Abstract) window
             % iterate windows
             for index_object = 1:numel( windows )
 
+                % absolute values of the positions
+                positions_over_halfwidth_abs = abs( positions_over_halfwidth{ index_object } );
+
                 % compute samples (scalar)
-                samples{ index_object } = compute_samples_scalar( windows( index_object ), positions_over_halfwidth{ index_object } );
+                samples{ index_object } = compute_samples_scalar( windows( index_object ), positions_over_halfwidth_abs );
 
             end % for index_object = 1:numel( f_numbers )
 
@@ -137,7 +140,7 @@ classdef (Abstract) window
         %------------------------------------------------------------------
         % compute samples (scalar)
         %------------------------------------------------------------------
-        samples = compute_samples_scalar( window, positions_over_halfwidth );
+        samples = compute_samples_scalar( window, positions_over_halfwidth_abs );
 
         %------------------------------------------------------------------
         % string array (scalar)

@@ -3,7 +3,7 @@
 %
 % author: Martin F. Schiffner
 % date: 2021-08-10
-% modified: 2022-01-09
+% modified: 2023-12-20
 %
 classdef hann < windows.window
 
@@ -48,20 +48,20 @@ classdef hann < windows.window
         %------------------------------------------------------------------
         % compute samples (scalar)
         %------------------------------------------------------------------
-        function samples = compute_samples_scalar( ~, positions_over_halfwidth )
+        function samples = compute_samples_scalar( ~, positions_over_halfwidth_abs )
 
             %--------------------------------------------------------------
             % 1.) check arguments
             %--------------------------------------------------------------
             % calling method ensures class windows.window for hann (scalar)
-            % calling method ensures for element_pitch_over_lambda
+            % calling method ensures positions_over_halfwidth_abs < 1
 
             %--------------------------------------------------------------
             % 2.) compute samples (scalar)
             %--------------------------------------------------------------
-            samples = ( abs( positions_over_halfwidth ) < 1 ) .* ( 1 + cos( pi * positions_over_halfwidth ) ) / 2;
+            samples = ( 1 + cos( pi * positions_over_halfwidth_abs ) ) / 2;
 
-        end % function samples = compute_samples_scalar( ~, positions_over_halfwidth )
+        end % function samples = compute_samples_scalar( ~, positions_over_halfwidth_abs )
 
         %------------------------------------------------------------------
         % string array (scalar)
