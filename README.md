@@ -1,4 +1,4 @@
-# Frequency-Dependent F-Number for Coherent Plane-Wave Compounding
+# Frequency-Dependent F-Number
 
 <!-- shields -->
 [![GitHub][license-shield]][license-url]
@@ -25,65 +25,77 @@
 Simple
 [MATLAB](https://mathworks.com/products/matlab.html) and
 [CUDA](https://developer.nvidia.com/cuda-zone) implementations of
-the frequency-dependent F-number
+the frequency-dependent F-number for
+coherent plane-wave compounding
 [[1]](#SchiffnerITUFFC2023),
-[[2]](#SchiffnerIUS2021) for
-coherent plane-wave compounding.
+[[2]](#SchiffnerIUS2021),
+line-by-line scanning
+[[3]](#SchiffnerIUS2024), and
+synthetic aperture imaging
+[[4]](#SchiffnerIOJUFFC2025).
 
 ![CIRS040](./figures/f_number_effect.png)
 
-## What is an F-Number?
+## What is the F-Number?
 
 The F-number is
 a user-defined parameter of
 a technique known as
-"dynamic receive aperture".
-Such apertures reduce
+"dynamic aperture".
+This technique reduces
 image artifacts in
-all image formation methods using
-the delay-and-sum (DAS) algorithm, such as
+all image formation methods that use
+the delay-and-sum (DAS) algorithm to focus
+echo signals.
+These methods include
 
-- coherent plane-wave compounding [[3]](#MontaldoITUFFC2009), or
-- synthetic aperture imaging [[4]](#JensenUlt2006).
+- coherent plane-wave compounding [[5]](#MontaldoITUFFC2009);
+- line-by-line scanning [[6]](#JensenUlt2006); and
+- synthetic aperture imaging [[7]](#JensenUlt2006).
 
-The receive aperture widens with
-the focal length.
+The dynamic aperture has two properties.
+First,
+it is centered on
+the lateral focal position.
+Second,
+it widens with
+the focal length as
+a function of
+the F-number.
 The F-number, for
-a uniform linear transducer array, equals
+a linear transducer array, equals
 the quotient of
 the focal length and
-the width of
-the receive subaperture.
+the aperture width.
 
 ![F-number](./figures/f_number_definition.png)
 
-The usage of
-a fixed F-number results in
-a dynamic receive subaperture whose
-width increases with
-the focal length.
+Typical F-numbers, however, exclude
+echo signals from the focusing and reduce both
+the signal-to-noise ratio (SNR) and
+the lateral resolution.
 
 ## Established Methods to Compute the F-Number are Contradictory and Yield Frequency-Dependent Results
 
 Established methods to compute
-the optimal F-number attribute
+optimal F-numbers attribute
 the image artifacts to
 two different phenomena:
 
-1. Noise [[5]](#PerrotUlt2021), [[6]](#Szabo2013), [[3]](#MontaldoITUFFC2009):
+1. Measurement noise [[5]](#MontaldoITUFFC2009), [[8]](#PerrotUlt2021), [[9]](#Szabo2013):
 The directivity of
 the array elements attenuates
 the echoes and reduces
-the signal-to-noise ratio of
+the SNR of
 the recorded signals.
 
-2. Grating lobes [[7]](#DelannoyJAP1979), [[8]](#BruneelJAP1978):
+2. Grating lobes [[10]](#DelannoyJAP1979), [[11]](#BruneelJAP1978):
 The width of
-the receive subaperture determines
+the aperture determines
 the grating lobe-to-main lobe ratio.
 
-Both approaches, although yielding
-similar F-numbers (0.5 <= F <= 2), are
+Both approaches yield
+similar F-numbers (0.5 <= F <= 2) but are
 mutually contradictory.
 
 Wide array elements, for example, show
@@ -265,33 +277,47 @@ M. F. Schiffner and G. Schmitz,
 [![arXiv](https://img.shields.io/badge/arXiv-2111.04593-b31b1b.svg)](https://arxiv.org/abs/2111.04593)
 [![Watch on YouTube](https://img.shields.io/youtube/views/T6BoYRvQ6rg?label=YouTube)](https://www.youtube.com/watch?v=T6BoYRvQ6rg)
 
-3. <a name="MontaldoITUFFC2009"></a>
+3. <a name="SchiffnerIUS2024"></a>
+M. F. Schiffner,
+“Frequency-dependent F-numbers suppress grating lobes and improve the lateral resolution in line-by-line scanning,”
+2024 IEEE Ultrasonics, Ferroelectrics, and Frequency Control Joint Symp. (UFFC-JS), Taipei, Sep. 2024, pp. 1–4.
+[![DOI:10.1109/UFFC-JS60046.2024.10793642](https://img.shields.io/badge/DOI-10.1109%2FUFFC%2FJS60046.2024.10793642-blue)](https://doi.org/10.1109/UFFC-JS60046.2024.10793642)
+[![arXiv](https://img.shields.io/badge/arXiv-2410.01593-b31b1b.svg)](https://arxiv.org/abs/2410.01593)
+[![Watch on YouTube](https://img.shields.io/youtube/views/lR8OjPcERfU?label=YouTube)](https://www.youtube.com/watch?v=lR8OjPcERfU)
+
+4. <a name="SchiffnerIOJUFFC2025"></a>
+M. F. Schiffner,
+“Frequency-dependent F-numbers suppress grating lobes and improve both the signal-to-noise ratio and the lateral resolution in synthetic aperture imaging,”
+2025 IEEE Int. Ultrasonics Symp. (IUS), Utrecht, Sep. 2025.
+[![Watch on YouTube](https://img.shields.io/youtube/views/AzfLsqVA0b8?label=YouTube)](https://www.youtube.com/watch?v=AzfLsqVA0b8)
+
+5. <a name="MontaldoITUFFC2009"></a>
 G. Montaldo, M. Tanter, J. Bercoff, N. Benech, and M. Fink,
 “Coherent plane-wave compounding for very high frame rate ultrasonography and transient elastography,"
 IEEE Trans. Ultrason., Ferroelectr., Freq. Control, vol. 56, no. 3, pp. 489–506, Mar. 2009.
 [![DOI:10.1109/TUFFC.2009.1067](https://img.shields.io/badge/DOI-10.1109%2FTUFFC.2009.1067-blue)](https://doi.org/10.1109/TUFFC.2009.1067)
 
-4. <a name="JensenUlt2006"></a>
+7. <a name="JensenUlt2006"></a>
 J. A. Jensen, S. I. Nikolov, K. L. Gammelmark, and M. H. Pedersen,
 “Synthetic aperture ultrasound imaging,” Ultrasonics, vol. 44, Supplement, e5–e15, Dec. 2006.
 [![DOI:10.1016/j.ultras.2006.07.017](https://img.shields.io/badge/DOI-10.1016%2Fj.ultras.2006.07.017-blue)](https://doi.org/10.1016/j.ultras.2006.07.017)
 
-5. <a name="PerrotUlt2021"></a>
+8. <a name="PerrotUlt2021"></a>
 V. Perrot, M. Polichetti, F. Varray, and D. Garcia,
 “So you think you can DAS? A viewpoint on delay-and-sum beamforming,”
 Ultrasonics, vol. 111, p. 106 309, Mar. 2021.
 [![DOI:10.1016/j.ultras.2020.106309](https://img.shields.io/badge/DOI-10.1016%2Fj.ultras.2020.106309-blue)](https://doi.org/10.1016/j.ultras.2020.106309)
 
-6. <a name="Szabo2013"></a>
+9. <a name="Szabo2013"></a>
 T. L. Szabo, Diagnostic Ultrasound Imaging: Inside Out, 2nd. Elsevier Academic Press, Dec. 2013
 
-7. <a name="DelannoyJAP1979"></a>
+10. <a name="DelannoyJAP1979"></a>
 B. Delannoy, R. Torguet, C. Bruneel, E. Bridoux, J. M. Rouvaen, and H. Lasota,
 “Acoustical image reconstruction in parallel-processing analog electronic systems,”
 J. Appl. Phys., vol. 50, no. 5, pp. 3153–3159, May 1979.
 [![DOI:10.1063/1.326397](https://img.shields.io/badge/DOI-10.1063%2F1.326397-blue)](https://doi.org/10.1063/1.326397)
 
-8. <a name="BruneelJAP1978"></a>
+11. <a name="BruneelJAP1978"></a>
 C. Bruneel, E. Bridoux, B. Delannoy, B. Nongaillard, J. M. Rouvaen, and R. Torguet,
 “Effect of spatial sampling on an acoustical image reconstruction,”
 J. Appl. Phys., vol. 49, no. 2, pp. 569–573, Feb. 1978.
