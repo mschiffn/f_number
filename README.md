@@ -50,7 +50,7 @@ echo signals.
 These methods include
 
 - coherent plane-wave compounding [[5]](#MontaldoITUFFC2009);
-- line-by-line scanning [[6]](#JensenUlt2006); and
+- line-by-line scanning [[6]](#IlovitshITUFFC2019); and
 - synthetic aperture imaging [[7]](#JensenUlt2006).
 
 The dynamic aperture has two properties.
@@ -296,6 +296,12 @@ G. Montaldo, M. Tanter, J. Bercoff, N. Benech, and M. Fink,
 “Coherent plane-wave compounding for very high frame rate ultrasonography and transient elastography,"
 IEEE Trans. Ultrason., Ferroelectr., Freq. Control, vol. 56, no. 3, pp. 489–506, Mar. 2009.
 [![DOI:10.1109/TUFFC.2009.1067](https://img.shields.io/badge/DOI-10.1109%2FTUFFC.2009.1067-blue)](https://doi.org/10.1109/TUFFC.2009.1067)
+
+6. <a name="IlovitshITUFFC2019"></a>
+A. Ilovitsh, T. Ilovitsh, J. Foiret, D. N. Stephens, and K. W. Ferrara,
+“Simultaneous axial multifocal imaging using a single acoustical transmission: A practical implementation,”
+IEEE Trans. Ultrason., Ferroelectr., Freq. Control, vol. 66, no. 2, pp. 273–284, Feb. 2019.
+[![DOI:10.1109/TUFFC.2018.2885080](https://img.shields.io/badge/DOI-10.1109%2FTUFFC.2018.2885080-blue)](https://doi.org/10.1109/TUFFC.2018.2885080)
 
 7. <a name="JensenUlt2006"></a>
 J. A. Jensen, S. I. Nikolov, K. L. Gammelmark, and M. H. Pedersen,
