@@ -44,24 +44,35 @@ a technique known as
 "dynamic aperture".
 This technique reduces
 image artifacts in
-all image formation methods that use
+image formation methods that use
 the delay-and-sum (DAS) algorithm to focus
 echo signals.
-These methods include
+Such methods include
 
 - coherent plane-wave compounding [[5]](#MontaldoITUFFC2009);
 - line-by-line scanning [[6]](#IlovitshITUFFC2019); and
 - synthetic aperture imaging [[7]](#JensenUlt2006).
 
-The dynamic aperture has two properties.
-First,
-it is centered on
+The term "aperture" denotes
+the set of
+array elements that contribute to
+the focusing.
+The dynamic aperture varies with
+the focus and, for any given focus, seeks to achieve
+two properties:
+
+1. Centering on
 the lateral focal position.
-Second,
-it widens with
+The left and
+right bounds have
+equal distance from
+the lateral focal position
+
+2. Linear widening with
 the focal length as
 a function of
 the F-number.
+
 The F-number, for
 a linear transducer array, equals
 the quotient of
@@ -193,54 +204,94 @@ examples
 The repository has the following structure:
 
     .
-    ├── +auxiliary      # auxiliary functions (e.g., dimension and size check)
-    ├── +cuda           # C++/CUDA implementation and MEX interface
-    ├── +f_numbers      # classes for various types of F-numbers (e.g., constant, directivity-derived, proposed)
-    ├── +normalizations # classes for various types of normalizations (e.g., off, on, window-based)
-    ├── +platforms      # classes for various types of platforms (e.g., CPU, GPU)
-    ├── +windows        # classes for various window functions (e.g., boxcar, Hann, Tukey)
-    ├── das_pw.m        # main function
-    ├── data_RF.mat     # experimental data (tissue phantom)
-    ├── examples.m      # examples for the usage of the main function
-    ├── LICENSE         # license file
-    └── README.md       # this readme
+    ├── +auxiliary       # auxiliary functions (e.g., dimension and size check)
+    ├── +cuda            # C++/CUDA implementation and MEX interface
+    ├── +f_numbers       # classes for various types of F-numbers (e.g., constant, directivity-derived, proposed)
+    ├── +normalizations  # classes for various types of normalizations (e.g., off, on, window-based)
+    ├── +platforms       # classes for various types of platforms (e.g., CPU, GPU)
+    ├── +windows         # classes for various window functions (e.g., boxcar, Hann, Tukey)
+    ├── das_pw.m         # main function for coherent plane-wave compounding
+    ├── das_prog_scan.m  # main function for line-by-line scanning
+    ├── das_sa.m         # main function for synthetic aperture imaging
+    ├── data_RF.mat      # experimental data (tissue phantom; steered plane waves)
+    ├── examples.m       # examples for the usage of the main functions
+    ├── LICENSE          # license file
+    └── README.md        # this readme
 
-The packages +f_numbers, +normalizations, and +windows contain
+The packages
++f_numbers,
++normalizations, and
++windows contain
 exemplary class hierarchies to manage
 various types of
 F-numbers,
 normalizations, and
-window functions.
+window functions,
+respectively.
+
+The package
++cuda contains
+the source code for
+C++/CUDA.
+
+The package
++platforms contains
+classes that determine
+the platform for
+the computations
+(CPU vs. GPU).
 
 ## Image Formation
 
-Use the function das_pw to form images.
+The functions
+**das_pw**,
+**das_prog_scan**, and
+**das_sa** enable
+image formation.
 
-In MATLAB type
+### Coherent Plane-Wave Compounding
+
+The function
+**das_pw** forms
+single plane-wave images
+[[1]](#SchiffnerITUFFC2023),
+[[2]](#SchiffnerIUS2021).
+The images that result from
+different steering angles can be
+added manually.
+
+In
+the [MATLAB](https://mathworks.com/products/matlab.html) command line, type
 ```matlab
 help das_pw
 ```
+to display
+explanations of
+all input and
+output arguments.
 
-to obtain an explanation of the input and output arguments.
-
-The typical usage is:
-
+The typical usage of
+the function
+**das_pw** is:
 ```matlab
-[ image, F_number_values ] = das_pw( positions_x, positions_z, data_RF, f_s, theta_incident, element_width, element_pitch, [ f_lb, f_ub ], c_ref, N_samples_shift, window, F_number, normalization, platform );
+image = das_pw( positions_x, positions_z, data_RF, f_s, theta_incident, element_width, element_pitch, [ f_lb, f_ub ], c_ref, N_samples_shift, window, F_number, normalization, platform );
 ```
 
-The proposed F-number can be instantiated by
+The proposed F-number
+[[1]](#SchiffnerITUFFC2023),
+[[2]](#SchiffnerIUS2021) can be
+instantiated by:
 
 ```matlab
-chi_lb = 45;  % minimum angular distance of the first-order grating lobes (°)
-F_ub = 3;     % maximum permissible F-number
+chi_lb = 60;  % minimum angular distance of the first-order grating lobes (°)
+F_ub = 2;     % maximum permissible F-number
 delta = 10;   % safety margin for anti-lobe aliasing (°)
 F_number_rx = f_numbers.grating.angle_lb( chi_lb, F_ub, delta );
 ```
 
 The directivity-derived F-numbers
-[[5]](#PerrotUlt2021),
-[[6]](#Szabo2013) are
+[[8]](#PerrotUlt2021),
+[[9]](#Szabo2013) are:
 
 ```matlab
 width_over_pitch = 0.918;  % element width-to-element pitch ratio (1)
@@ -248,18 +299,85 @@ F_number_rx_1 = f_numbers.directivity.perrot( width_over_pitch );
 F_number_rx_2 = f_numbers.directivity.szabo( width_over_pitch );
 ```
 
-The standard fixed F-number is
+The usual fixed F-number is:
 
 ```matlab
-F_number_rx_3 = f_numbers.constant( 3 );
+F_number_rx_3 = f_numbers.constant( 2 );
 ```
 
-The MEX interface to the C++/CUDA implementation must be compiled:
+### Line-by-Line Scanning
+
+The function
+**das_prog_scan** forms
+line-by-line scans
+[[3]](#SchiffnerIUS2024) from
+a complete synthetic aperture scan.
+Each scan has
+a different transmit focal length.
+
+In
+the [MATLAB](https://mathworks.com/products/matlab.html) command line, type
+```matlab
+help das_prog_scan
+```
+to display
+explanations of
+all input and
+output arguments.
+
+### Synthetic Aperture Imaging
+
+The function
+**das_sa** forms
+a fully-focused image from
+a complete synthetic aperture scan
+[[4]](#SchiffnerIOJUFFC2025).
+The focusing is dynamic in both
+transmit and
+receive.
+
+In
+the [MATLAB](https://mathworks.com/products/matlab.html) command line, type
+```matlab
+help das_sa
+```
+to display
+explanations of
+all input and
+output arguments.
+
+The typical usage of
+the function
+**das_sa** is:
+```matlab
+image = das_sa( positions_x, positions_z, data_RF, f_s, element_width, element_pitch, c_0, f_bounds, index_t0, window_tx, window_rx, F_number_tx, F_number_rx, normalization_tx, normalization_rx, platform );
+```
+
+### MEX Interface
+
+The usage of
+the MEX interface to
+the C++/CUDA implementation is
+optional but strongly recommended.
+This interface must be compiled:
 
 ```matlab
-mexcuda '-L/usr/local/cuda/lib64' -lcudart -lcufft gpu_bf_das_pw_rf.cu
+mexcuda '-L/usr/local/cuda/lib64' -lcudart -lcufft -lcublas gpu_bf_das_pw_rf.cu
+mexcuda '-L/usr/local/cuda/lib64' -lcudart -lcufft -lcublas gpu_bf_saft_rf.cu
 ```
-You might have to adapt the library path (here: /usr/local/cuda/lib64) to your system.
+
+The library path (here: /usr/local/cuda/lib64) has to be adapted to your system.
+
+Define the platform argument
+
+```matlab
+index_gpu = 0; % index of the GPU
+platform = platforms.gpu( index_gpu );
+```
+to run
+the C++/CUDA implementation on
+the GPU with
+the index index_gpu.
 
 ## :notebook: References
 
